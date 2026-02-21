@@ -1,0 +1,79 @@
+{
+  "part_id": "02",
+  "title": "Environment Config & SDK Client Initialization",
+  "type": "infrastructure",
+  "goal": "Load and validate the required environment variables (AZURE_FOUNDRY_ENDPOINT, AZURE_FOUNDRY_API_KEY), fail fast with descriptive errors if missing, and initialize the Azure AI Foundry/Projects SDK client used for deployment discovery.",
+  "scope": {
+    "in_scope": [
+      "Read AZURE_FOUNDRY_ENDPOINT and AZURE_FOUNDRY_API_KEY from environment variables",
+      "Validate that both variables are present and non-empty",
+      "Produce clear, actionable error messages naming the specific missing variable",
+      "Initialize the Azure AI Foundry SDK client (AIProjectClient) using the loaded credentials",
+      "Expose a function that returns the initialized client for use by other modules",
+      "Ensure the API key is never logged, displayed, or written to any output"
+    ],
+    "out_of_scope": [
+      "Deployment discovery (handled in Part 03)",
+      "Model calling/inference client initialization (handled in Part 05 via Azure AI Inference SDK)",
+      "Streamlit UI rendering of errors (UI integration in Part 06)",
+      "Multi-resource or multi-subscription support",
+      "Azure Identity / DefaultAzureCredential authentication (MVP uses API key only)"
+    ]
+  },
+  "inputs": [
+    "Environment variables: AZURE_FOUNDRY_ENDPOINT, AZURE_FOUNDRY_API_KEY",
+    "PRD section 4 — Authentication and initialization",
+    "PRD user story GH-001, GH-011"
+  ],
+  "outputs": [
+    "src/config.py — module for environment variable loading and validation",
+    "src/client.py — module for Azure SDK client initialization",
+    "Validated configuration object/dict with endpoint (key kept in memory only)",
+    "Initialized AIProjectClient instance"
+  ],
+  "files_to_create": [
+    "src/config.py",
+    "src/client.py"
+  ],
+  "files_to_modify": [],
+  "dependencies": [
+    "Part 01 — Project scaffolding and requirements.txt must exist"
+  ],
+  "checklist": [
+    "Create src/config.py with a load_config() function that reads AZURE_FOUNDRY_ENDPOINT from os.environ",
+    "In load_config(), read AZURE_FOUNDRY_API_KEY from os.environ",
+    "If AZURE_FOUNDRY_ENDPOINT is missing or empty, raise a ValueError with message: 'Missing required environment variable: AZURE_FOUNDRY_ENDPOINT'",
+    "If AZURE_FOUNDRY_API_KEY is missing or empty, raise a ValueError with message: 'Missing required environment variable: AZURE_FOUNDRY_API_KEY'",
+    "Return a config dictionary containing 'endpoint' and 'api_key' keys",
+    "Create src/client.py with a create_client(config) function",
+    "In create_client(), initialize AIProjectClient using the endpoint and AzureKeyCredential with the API key",
+    "Return the initialized client instance",
+    "Verify that the API key string does not appear in any log statement or __repr__ output"
+  ],
+  "acceptance_criteria": [
+    "load_config() returns a dict with 'endpoint' and 'api_key' when both env vars are set",
+    "load_config() raises ValueError naming AZURE_FOUNDRY_ENDPOINT when that variable is missing",
+    "load_config() raises ValueError naming AZURE_FOUNDRY_API_KEY when that variable is missing",
+    "create_client() returns a valid AIProjectClient instance when given a correct config",
+    "No function prints, logs, or exposes the API key value",
+    "Both modules are importable without side effects"
+  ],
+  "review_focus": [
+    "Error messages are specific and actionable — they name the exact missing variable",
+    "The API key is not leaked through logging, str(), repr(), or error tracebacks",
+    "The client initialization uses the correct SDK classes and constructor signature",
+    "Functions are pure and do not rely on global state beyond os.environ"
+  ],
+  "risks_or_notes": [
+    "The Azure AI Foundry SDK authentication pattern may use AzureKeyCredential from azure.core.credentials — verify the import path",
+    "AIProjectClient constructor signature may vary between SDK versions — consult latest docs",
+    "Consider whether the client should be cached (singleton) or recreated per call — for MVP, single initialization at startup is sufficient"
+  ],
+  "definition_of_done": [
+    "src/config.py exists and load_config() works correctly with valid env vars",
+    "src/config.py raises clear errors for each missing variable independently",
+    "src/client.py exists and create_client() returns a functional SDK client",
+    "API key never appears in stdout, stderr, logs, or files",
+    "Unit tests can validate config loading with mocked environment variables"
+  ]
+}

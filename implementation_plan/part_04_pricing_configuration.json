@@ -1,0 +1,78 @@
+{
+  "part_id": "04",
+  "title": "Static Pricing Configuration & Cost Calculator",
+  "type": "domain",
+  "goal": "Provide a static pricing data file mapping model names to input/output cost per 1,000 tokens, and a cost calculation function that computes estimated cost from token counts using the defined formula.",
+  "scope": {
+    "in_scope": [
+      "Define a static JSON pricing file (model_pricing.json) with pricing data for common Azure AI Foundry models",
+      "Create a cost calculation function implementing the formula: cost = (input_tokens/1000 × input_price) + (output_tokens/1000 × output_price)",
+      "Handle missing pricing data for unknown models — return 'N/A' or None",
+      "Support lookup by model name with case-insensitive matching",
+      "Load the pricing file once and cache it in memory"
+    ],
+    "out_of_scope": [
+      "Dynamic pricing retrieval from Azure APIs",
+      "Currency conversion or regional pricing",
+      "Pricing for non-text modalities (image, audio, embedding)",
+      "UI rendering of cost data (Part 07)"
+    ]
+  },
+  "inputs": [
+    "PRD section 4 — Cost calculation",
+    "PRD user story GH-006",
+    "Token counts from inference responses (provided at call time)"
+  ],
+  "outputs": [
+    "src/model_pricing.json — static pricing data file with model-to-cost mappings",
+    "src/pricing.py — module with load_pricing() and calculate_cost() functions"
+  ],
+  "files_to_create": [
+    "src/pricing.py"
+  ],
+  "files_to_modify": [
+    "src/model_pricing.json"
+  ],
+  "dependencies": [
+    "Part 01 — model_pricing.json placeholder must exist"
+  ],
+  "checklist": [
+    "Populate src/model_pricing.json with pricing entries for common models: gpt-4o, gpt-4o-mini, gpt-4, gpt-35-turbo, phi-3, phi-3.5, phi-4",
+    "Each pricing entry must have keys: input_per_1k (float), output_per_1k (float)",
+    "Create src/pricing.py with a load_pricing() function that reads and parses model_pricing.json",
+    "Cache the parsed pricing data in a module-level variable to avoid repeated file I/O",
+    "Create a calculate_cost(model_name, input_tokens, output_tokens) function",
+    "Implement case-insensitive model name lookup in the pricing data",
+    "Apply the formula: cost = (input_tokens / 1000 * input_per_1k) + (output_tokens / 1000 * output_per_1k)",
+    "If model_name is not found in pricing data, return None to indicate 'N/A'",
+    "If input_tokens or output_tokens is None or missing, return None"
+  ],
+  "acceptance_criteria": [
+    "model_pricing.json is valid JSON and contains at least 5 model pricing entries",
+    "load_pricing() successfully parses the JSON file and returns a dict",
+    "calculate_cost('gpt-4o', 100, 50) returns the correct numeric result based on pricing data",
+    "calculate_cost('unknown-model', 100, 50) returns None",
+    "calculate_cost('GPT-4o', 100, 50) matches calculate_cost('gpt-4o', 100, 50) (case-insensitive)",
+    "calculate_cost('gpt-4o', None, 50) returns None gracefully",
+    "The pricing file path is resolved relative to the module, not the working directory"
+  ],
+  "review_focus": [
+    "Pricing values are reasonable approximations of current Azure AI pricing (as of early 2026)",
+    "Case-insensitive matching handles model names with varying capitalization",
+    "File I/O only happens once; subsequent calls use cached data",
+    "Edge cases with zero tokens, None tokens, and missing models are handled"
+  ],
+  "risks_or_notes": [
+    "Pricing data becomes stale as Azure updates model pricing — document this limitation in the README",
+    "Model names in the pricing file must match the model_name field returned by deployment discovery (Part 03)",
+    "Consider supporting partial model name matching (e.g., 'gpt-4o' matches 'gpt-4o-2024-08-06') as a future enhancement",
+    "USD is assumed as the currency — no multi-currency support in MVP"
+  ],
+  "definition_of_done": [
+    "src/model_pricing.json contains valid pricing data for at least 5 models",
+    "src/pricing.py exists with load_pricing() and calculate_cost() functions",
+    "Cost calculation produces correct results for known models",
+    "Unknown models return None instead of raising errors",
+    "Functions are testable independently without Streamlit or SDK dependencies"
+  ]
+}

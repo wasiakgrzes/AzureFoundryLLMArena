@@ -1,0 +1,30 @@
+{
+	"gpt-4o": {
+		"input_per_1k": 0.005,
+		"output_per_1k": 0.015
+	},
+	"gpt-4o-mini": {
+		"input_per_1k": 0.00015,
+		"output_per_1k": 0.0006
+	},
+	"gpt-4": {
+		"input_per_1k": 0.03,
+		"output_per_1k": 0.06
+	},
+	"gpt-35-turbo": {
+		"input_per_1k": 0.0005,
+		"output_per_1k": 0.0015
+	},
+	"phi-3": {
+		"input_per_1k": 0.00013,
+		"output_per_1k": 0.00013
+	},
+	"phi-3.5": {
+		"input_per_1k": 0.0002,
+		"output_per_1k": 0.0002
+	},
+	"phi-4": {
+		"input_per_1k": 0.00035,
+		"output_per_1k": 0.00035
+	}
+}

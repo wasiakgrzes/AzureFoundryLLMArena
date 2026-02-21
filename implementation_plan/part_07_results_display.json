@@ -1,0 +1,89 @@
+{
+  "part_id": "07",
+  "title": "Results Display — Dynamic Columns with Metrics",
+  "type": "ui",
+  "goal": "Implement the side-by-side results display showing each deployment's output, token usage, estimated cost, latency, and error state in dynamically rendered Streamlit columns. Wire the Submit button to trigger batch inference and cost calculation.",
+  "scope": {
+    "in_scope": [
+      "On submit, call run_batch_inference() with selected deployments and prompt",
+      "Calculate estimated cost for each result using calculate_cost()",
+      "Create one Streamlit column per selected deployment",
+      "Display in each column: deployment name (header), raw text output, input tokens, output tokens, total tokens, estimated cost, latency in ms",
+      "Display error message in error-state columns instead of output/metrics",
+      "Handle missing token data (display 'N/A' when tokens are None)",
+      "Handle missing cost data (display 'N/A' when pricing unavailable)",
+      "Show a spinner or progress indicator while inference is running"
+    ],
+    "out_of_scope": [
+      "Markdown rendering of output text (raw text only per PRD)",
+      "Best model selection and export (Part 08)",
+      "Result persistence or history",
+      "Comparative charts or visualizations"
+    ]
+  },
+  "inputs": [
+    "Session state: selected deployments, prompt text (from Part 06)",
+    "src/inference.py — run_batch_inference() from Part 05",
+    "src/pricing.py — calculate_cost() from Part 04",
+    "PRD section 4 — Results display",
+    "PRD user stories GH-005, GH-006, GH-007, GH-008"
+  ],
+  "outputs": [
+    "src/app.py — updated with results display section and inference trigger"
+  ],
+  "files_to_create": [],
+  "files_to_modify": [
+    "src/app.py"
+  ],
+  "dependencies": [
+    "Part 04 — pricing.py with calculate_cost()",
+    "Part 05 — inference.py with run_batch_inference()",
+    "Part 06 — UI layout with session state for selections and prompt"
+  ],
+  "checklist": [
+    "Import run_batch_inference from src/inference.py in app.py",
+    "Import calculate_cost from src/pricing.py in app.py",
+    "On Submit button click, display st.spinner('Running inference...') while processing",
+    "Call run_batch_inference(client, selected_deployments, prompt) and store results in session_state",
+    "After inference completes, create N columns using st.columns(len(results))",
+    "For each result/column pair, render the deployment_name as a subheader (st.subheader)",
+    "If result has an error (error is not None): display st.error(result['error']) and skip metrics",
+    "If result is successful: display output_text using st.text() or st.code() to prevent Markdown rendering",
+    "Display input_tokens, output_tokens, total_tokens as formatted metrics (use st.metric or formatted text)",
+    "Call calculate_cost(result['model_name'], result['input_tokens'], result['output_tokens']) for each result",
+    "Display estimated cost formatted as USD (e.g., '$0.0042') or 'N/A' if None",
+    "Display latency_ms formatted with units (e.g., '342 ms')",
+    "If token counts are None, display 'N/A' for token fields and cost"
+  ],
+  "acceptance_criteria": [
+    "Submitting a prompt triggers inference and displays results in side-by-side columns",
+    "Each column shows: deployment name, output text, input/output/total tokens, cost, latency",
+    "Output text is displayed as raw text without Markdown rendering",
+    "Failed deployments show their error message in the column without affecting other columns",
+    "Missing token data displays 'N/A' instead of crashing",
+    "Missing pricing data displays 'N/A' for cost",
+    "A spinner is visible during inference execution",
+    "Columns are visually aligned and readable for 1–5 deployments"
+  ],
+  "review_focus": [
+    "Raw text output is not passed through st.markdown() — use st.text() or st.code() to prevent rendering",
+    "Cost formatting follows a consistent pattern (e.g., 4 decimal places for small amounts)",
+    "Column widths are equal and responsive across 1–5 columns",
+    "Error state columns are visually distinct from success columns",
+    "Session state is used to persist results so they survive Streamlit reruns"
+  ],
+  "risks_or_notes": [
+    "Streamlit st.columns() with 5 columns on narrow screens may be cramped — consider minimum widths or scrollable containers",
+    "Long model outputs may cause columns to expand unevenly — consider using st.expander() or max-height containers for output text",
+    "Latency measurement may show high values for sequential execution — this is expected and documented",
+    "st.text() preserves whitespace but doesn't word-wrap — st.code() may be better for long outputs"
+  ],
+  "definition_of_done": [
+    "Results display section is fully implemented in src/app.py",
+    "All metrics (tokens, cost, latency) render correctly for success cases",
+    "Error cases display per-column error messages",
+    "N/A handling works for missing tokens and missing pricing",
+    "The end-to-end workflow (select → prompt → submit → view results) works in the browser",
+    "No Markdown rendering of model output text occurs"
+  ]
+}
