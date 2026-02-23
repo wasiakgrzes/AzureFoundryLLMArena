@@ -147,6 +147,7 @@ def run_inference(
     deployment_name: str,
     model_type: str,
     prompt: str,
+    conversation_history: Optional[List[Dict[str, str]]] = None,
     timeout_seconds: int = 60,
 ) -> Dict[str, Any]:
     start_time = time.perf_counter()
@@ -160,8 +161,18 @@ def run_inference(
 
         inference_client = _resolve_inference_client(client)
 
+        messages: List[Dict[str, str]] = []
+        if conversation_history:
+            for message in conversation_history:
+                role = str(message.get("role", "")).strip()
+                content = str(message.get("content", "")).strip()
+                if role and content:
+                    messages.append({"role": role, "content": content})
+
+        messages.append({"role": "user", "content": prompt})
+
         response = inference_client.complete(
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
             model=deployment_name,
             timeout=timeout_seconds,
         )
@@ -200,6 +211,7 @@ def run_batch_inference(
     client: Any,
     deployments: Iterable[Dict[str, Any]],
     prompt: str,
+    conversation_history_by_deployment: Optional[Dict[str, List[Dict[str, str]]]] = None,
     timeout_seconds: int = 60,
 ) -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
@@ -214,6 +226,7 @@ def run_batch_inference(
             deployment_name=deployment_name,
             model_type=model_type,
             prompt=prompt,
+            conversation_history=(conversation_history_by_deployment or {}).get(deployment_name),
             timeout_seconds=timeout_seconds,
         )
 

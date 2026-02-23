@@ -1,0 +1,84 @@
+{
+  "part_id": "04",
+  "title": "Arena Metrics Panel & Cost Placeholder",
+  "type": "ui",
+  "goal": "Display per-model objective metrics (latency, input tokens, output tokens, model name, deployment name) alongside each response card for informed elimination decisions. Add a static cost transparency notice when the cost display flag is enabled.",
+  "scope": {
+    "in_scope": [
+      "Render per-model metrics panel showing: latency (ms), input tokens, output tokens, model name, deployment name",
+      "Keep metrics visible with each response card during arena rounds",
+      "Handle missing token values by rendering 'N/A' without breaking layout",
+      "Gate metrics panel behind feature_arena_metrics_panel flag",
+      "Add static cost transparency notice: 'Cost estimation not available via SDK — see pricing page'",
+      "Gate cost notice behind feature_arena_cost_display flag",
+      "Ensure metrics render consistently for both arena mode and standard comparison mode"
+    ],
+    "out_of_scope": [
+      "Dynamic cost calculation or pricing logic changes",
+      "Comparative charts or visualizations",
+      "Metrics persistence or history (Week 3 scope)",
+      "Arena state management (Part 02)"
+    ]
+  },
+  "inputs": [
+    "Inference result dicts with: deployment_name, model_name, latency_ms, input_tokens, output_tokens, total_tokens",
+    "Config feature flags: feature_arena_metrics_panel, feature_arena_cost_display",
+    "PRD Week 1 section 4 — Arena metrics panel, Cost display placeholder",
+    "PRD user stories GH-W1-003, GH-W1-004"
+  ],
+  "outputs": [
+    "src/app.py — updated results rendering with metrics panel and cost notice"
+  ],
+  "files_to_create": [],
+  "files_to_modify": [
+    "src/app.py"
+  ],
+  "dependencies": [
+    "1_arena_engine/Part 01 — feature flags in config",
+    "0_mvp/Part 05 — inference results include latency and token fields",
+    "0_mvp/Part 07 — existing results display in app.py"
+  ],
+  "checklist": [
+    "When feature_arena_metrics_panel is True, render a metrics section within each result column",
+    "Display deployment_name as column header (already exists — verify consistency)",
+    "Display model_name as a metric or label within the column",
+    "Display latency_ms with 'ms' unit label using existing _format_latency_value()",
+    "Display input_tokens using existing _format_token_value()",
+    "Display output_tokens using existing _format_token_value()",
+    "Render all token values as 'N/A' when None without breaking layout",
+    "When feature_arena_cost_display is True, render st.info() with static message: 'Cost estimation not available via SDK — see pricing page'",
+    "Position cost notice near the metrics area for each model or as a global banner",
+    "Verify metrics remain visible and correct across multiple arena rounds"
+  ],
+  "acceptance_criteria": [
+    "Each successful model result shows latency, input tokens, output tokens, model name, and deployment name when metrics panel is enabled",
+    "Missing token values render as 'N/A' without breaking layout",
+    "Cost notice displays the exact static message specified in the PRD",
+    "No dynamic cost calculation is executed when cost display flag is enabled",
+    "Metrics panel is hidden when feature_arena_metrics_panel is false",
+    "Cost notice is hidden when feature_arena_cost_display is false",
+    "Error-state columns skip metrics and show only the error message",
+    "Metrics remain visible for every successful response across rounds"
+  ],
+  "review_focus": [
+    "Metrics formatting is consistent with existing _format_* helper functions",
+    "Static cost message wording matches PRD exactly",
+    "No dynamic cost calculation is accidentally triggered",
+    "Layout remains clean and readable with 2-5 columns of metrics",
+    "Metrics section integrates cleanly with arena elimination controls from Part 03"
+  ],
+  "risks_or_notes": [
+    "Existing _render_results() in app.py already displays some metrics — extend rather than duplicate",
+    "Verify that the metrics panel flag controls visibility without breaking the existing PRICING_ENABLED flow",
+    "5-column layout with full metrics may be visually dense on smaller screens",
+    "Consider using st.expander() for metrics on narrow viewports"
+  ],
+  "definition_of_done": [
+    "Metrics panel renders correctly per response when flag is enabled",
+    "All specified metrics (latency, tokens, model name, deployment name) are visible",
+    "N/A handling works for missing tokens",
+    "Cost placeholder message renders correctly when flag is enabled",
+    "No dynamic cost calculation runs in this part",
+    "Metrics panel is completely hidden when flag is disabled"
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "part_id": "05",
+  "title": "Inspector UI Panel & Output Highlighting",
+  "type": "ui",
+  "goal": "Build the Streamlit inspector panel UI including configuration controls, pass/fail badges, structured reason text, inspector model selector, and color-coded output highlighting (red=violation, green=validated, blue=informational).",
+  "scope": {
+    "in_scope": [
+      "Render collapsible inspector panel (st.expander) gated by feature_inspector_enabled",
+      "Inspector configuration controls: validation format selector (JSON/Markdown/XML), required fields input, tone/persona expectation text inputs",
+      "Inspector model deployment selector (dropdown from discovered deployments)",
+      "Trigger inspector checks after inference results are available",
+      "Display pass/fail badges for each check per model response",
+      "Display structured reason text for semantic check failures",
+      "Implement output highlighting using Streamlit HTML: red=violation, green=validated, blue=informational",
+      "Gate highlighting behind feature_inspector_highlighting flag",
+      "Store inspector configuration in session state for persistence across reruns"
+    ],
+    "out_of_scope": [
+      "Inspector logic implementation (Parts 02-04)",
+      "Persistence of inspector results (Week 3)",
+      "Custom CSS theming beyond simple color-coded HTML",
+      "Inspector result export"
+    ]
+  },
+  "inputs": [
+    "src/inspector.py — all check functions from Parts 02-04",
+    "Inference results from session state",
+    "Config feature flags for inspector controls",
+    "Discovered deployments for inspector model selector",
+    "PRD Week 2 section 4 — Output highlighting layer",
+    "PRD section 5 — User experience",
+    "PRD user stories GH-W2-001, GH-W2-006"
+  ],
+  "outputs": [
+    "src/app.py — updated with inspector panel UI and highlighting"
+  ],
+  "files_to_create": [],
+  "files_to_modify": [
+    "src/app.py"
+  ],
+  "dependencies": [
+    "2_output_inspector/Part 01 — feature flags in config",
+    "2_output_inspector/Parts 02-04 — inspector check functions",
+    "0_mvp/Part 07 — results display in app.py"
+  ],
+  "checklist": [
+    "Add inspector panel as st.expander('Output Inspector') gated by feature_inspector_enabled flag",
+    "Inside panel, render format selector: st.selectbox for JSON/Markdown/XML validation mode",
+    "Render st.text_input for required fields (comma-separated) when feature_inspector_required_fields is enabled",
+    "Render st.text_input for expected tone when feature_inspector_tone_check is enabled",
+    "Render st.text_input for expected persona when feature_inspector_persona_check is enabled",
+    "Render st.selectbox for inspector deployment selection (from discovered deployments) when semantic checks enabled",
+    "After inference results render, run enabled inspector checks against each model response",
+    "Display check results as pass/fail badges per model using st.success/st.error/st.info",
+    "For semantic check failures, display structured reason text from inspector model",
+    "Implement highlight rendering function using st.markdown with HTML: <span style='color:red'> for violations, green for validated, blue for informational",
+    "Gate highlight rendering behind feature_inspector_highlighting flag",
+    "Store inspector configuration (selected format, fields, tone, persona, deployment) in session state"
+  ],
+  "acceptance_criteria": [
+    "Inspector panel is visible only when feature_inspector_enabled is true",
+    "Format selector, required fields input, and tone/persona inputs render correctly",
+    "Inspector model deployment dropdown is populated from discovered deployments",
+    "Pass/fail badges render for each enabled check per model response",
+    "Semantic failure reasons display structured reason text",
+    "Violations render in red, validations in green, informational in blue",
+    "Highlighting does not alter original response text semantics",
+    "Inspector configuration persists in session state across reruns",
+    "Inspector panel is collapsible to avoid UI clutter"
+  ],
+  "review_focus": [
+    "Inspector panel does not interfere with existing results display layout",
+    "Color-coded highlighting uses safe HTML (no XSS vectors from model output)",
+    "Session state keys for inspector config don't collide with existing keys",
+    "Inspector checks run only when relevant flags are enabled (no unnecessary computation)",
+    "UI remains responsive during semantic inspector calls (consider spinner/progress)"
+  ],
+  "risks_or_notes": [
+    "Rendering raw model output in HTML highlight spans requires proper escaping to prevent XSS",
+    "Semantic checks may add noticeable latency — consider showing a spinner during inspector calls",
+    "Streamlit's st.markdown(unsafe_allow_html=True) is needed for color highlighting — use carefully",
+    "Required fields input parsing (comma-separated) should be robust to extra whitespace and empty entries",
+    "With many checks enabled across many models, the inspector section may become visually dense"
+  ],
+  "definition_of_done": [
+    "Inspector panel renders correctly with all configuration controls",
+    "All enabled checks display pass/fail badges per model response",
+    "Color-coded highlighting renders correctly with proper HTML escaping",
+    "Inspector panel is hidden when master toggle is disabled",
+    "Session state handles inspector configuration across reruns",
+    "UI remains clean and usable with 2-5 model responses"
+  ]
+}

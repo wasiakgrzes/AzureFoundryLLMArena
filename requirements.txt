@@ -1,5 +1,5 @@
-streamlit>=1.28,<2.0
-azure-ai-projects>=1.0.0b1,<2.0.0
-azure-ai-inference>=1.0.0b1,<2.0.0
-azure-identity>=1.15,<2.0
-python-dotenv>=1.0,<2.0
+streamlit>=1.54,<2.0
+azure-ai-inference>=1.0.0b9,<1.1.0
+azure-core>=1.38,<2.0
+azure-identity>=1.25,<2.0
+python-dotenv>=1.2,<2.0

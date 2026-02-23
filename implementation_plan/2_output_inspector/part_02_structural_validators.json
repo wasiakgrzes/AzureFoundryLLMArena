@@ -1,0 +1,80 @@
+{
+  "part_id": "02",
+  "title": "Structural Format Validators (JSON/Markdown/XML)",
+  "type": "domain",
+  "goal": "Implement deterministic structural validators in src/inspector.py for JSON, Markdown, and XML output formats. Each validator parses the model response and returns a pass/fail result with detail.",
+  "scope": {
+    "in_scope": [
+      "Implement validate_json(text) using json.loads — report valid/invalid with parse error detail",
+      "Implement validate_markdown(text) checking basic heading/list structure presence",
+      "Implement validate_xml(text) using xml.etree.ElementTree — report parseable/invalid with error detail",
+      "Return consistent result dict: {check_name, status, detail}",
+      "Handle empty/None inputs gracefully with 'fail' status and descriptive detail",
+      "All validators run locally with zero network dependency"
+    ],
+    "out_of_scope": [
+      "Schema validation (JSON Schema, DTD, XSD)",
+      "Deep Markdown structure analysis (link validation, image checks)",
+      "Required field checks (Part 03)",
+      "Inspector UI rendering (Part 05)",
+      "Semantic checks (Part 04)"
+    ]
+  },
+  "inputs": [
+    "Model response text (string) from inference results",
+    "PRD Week 2 section 4 — Output format validation",
+    "PRD user story GH-W2-002"
+  ],
+  "outputs": [
+    "src/inspector.py — validate_json(), validate_markdown(), validate_xml() fully implemented"
+  ],
+  "files_to_create": [],
+  "files_to_modify": [
+    "src/inspector.py"
+  ],
+  "dependencies": [
+    "2_output_inspector/Part 01 — inspector.py scaffold with function stubs"
+  ],
+  "checklist": [
+    "Implement validate_json(text): attempt json.loads(text), return pass on success",
+    "On json.loads failure, capture JSONDecodeError message and return fail with error detail",
+    "Implement validate_markdown(text): check for presence of heading (# ) and/or list (- or *) markers",
+    "Markdown validation returns pass if at least one structural element is found, fail otherwise",
+    "Include detail listing which structural elements were found or missing",
+    "Implement validate_xml(text): attempt ET.fromstring(text), return pass on success",
+    "On XML parse failure, capture ParseError message and return fail with error detail",
+    "Handle None input in all validators: return fail with 'No output to validate'",
+    "Handle empty string input in all validators: return fail with 'Empty output'",
+    "Ensure returned dict always has keys: check_name (str), status ('pass'|'fail'), detail (str)"
+  ],
+  "acceptance_criteria": [
+    "validate_json('{\"key\": \"value\"}') returns status='pass'",
+    "validate_json('not json') returns status='fail' with JSON parse error in detail",
+    "validate_xml('<root><item/></root>') returns status='pass'",
+    "validate_xml('not xml') returns status='fail' with XML parse error in detail",
+    "validate_markdown('# Title\\n- item') returns status='pass'",
+    "validate_markdown('plain text with no structure') returns status='fail'",
+    "All validators handle None and empty string inputs without raising exceptions",
+    "No network calls are made during any validation"
+  ],
+  "review_focus": [
+    "JSON validator uses standard library json.loads (no external dependencies)",
+    "XML validator uses standard library xml.etree.ElementTree (no external dependencies)",
+    "Markdown heuristic is reasonable — checks for headings and/or list markers without being overly strict",
+    "Error detail messages are informative but don't expose internal paths or stack traces",
+    "Result dict structure is identical across all validators"
+  ],
+  "risks_or_notes": [
+    "Markdown validation is heuristic-based and may produce false positives/negatives for edge cases",
+    "JSON/XML validators may need to handle responses that contain structured content embedded within prose (addressed in Part 03's no-extra-text check)",
+    "Very large model responses may have performance implications for XML parsing — unlikely but worth noting",
+    "Consider whether to strip leading/trailing whitespace before validation"
+  ],
+  "definition_of_done": [
+    "All three validators are fully implemented in src/inspector.py",
+    "Each returns consistent {check_name, status, detail} dicts",
+    "Edge cases (None, empty, invalid) are handled gracefully",
+    "No external dependencies beyond Python standard library",
+    "Functions are independently unit-testable"
+  ]
+}

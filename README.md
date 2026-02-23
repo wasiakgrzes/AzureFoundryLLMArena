@@ -1,6 +1,6 @@
 # Azure Foundry LLM Arena
 
-Azure Foundry LLM Arena is a local Streamlit tool for comparing multiple Azure AI Foundry deployments side by side with one shared prompt.
+Azure Foundry LLM Arena is a local Streamlit tool for comparing multiple Microsoft Foundry (formerly Azure AI Foundry) deployments side by side with one shared prompt.
 
 ## What it does
 
@@ -13,7 +13,7 @@ Azure Foundry LLM Arena is a local Streamlit tool for comparing multiple Azure A
 ## Prerequisites
 
 - Python 3.11+
-- An Azure AI Foundry resource with model deployments
+- A Microsoft Foundry resource with model deployments
 - API key access to the resource
 
 ## Installation
@@ -33,7 +33,19 @@ AZURE_FOUNDRY_API_KEY=<your-api-key>
 AZURE_FOUNDRY_DEPLOYMENTS=DeepSeek-V3.2,gpt-5-mini,Mistral-Large-3
 ```
 
-For API-key inference endpoints that do not expose deployment listing APIs, set `AZURE_FOUNDRY_DEPLOYMENTS` (comma-separated) so the app can load your deployments.
+For API-key inference endpoints that do not expose deployment listing APIs, set `AZURE_FOUNDRY_DEPLOYMENTS` (comma-separated) so the app can load your deployments. You can also set `DEPLOYMENT_NAME` for a single deployment fallback.
+
+### Feature flags
+
+```env
+FEATURE_ARENA_ELIMINATION=false
+FEATURE_ARENA_METRICS_PANEL=false
+FEATURE_ARENA_COST_DISPLAY=false
+```
+
+- `FEATURE_ARENA_ELIMINATION=true` enables tournament-style elimination rounds.
+- `FEATURE_ARENA_METRICS_PANEL=true` shows per-model metrics (model name, latency, token usage).
+- `FEATURE_ARENA_COST_DISPLAY=true` shows the static transparency note: `Cost estimation not available via SDK — see pricing page`.
 
 ## Run the app
 
@@ -49,6 +61,21 @@ streamlit run src/app.py
 4. Click **Submit** to run inference.
 5. Compare results side by side.
 6. Select a best model and download `best_model_config.json`.
+
+## Arena Elimination Mode
+
+When `FEATURE_ARENA_ELIMINATION=true`:
+
+1. Select 2–5 deployments and submit a prompt.
+2. Round results are displayed with winner checkboxes for successful responses.
+3. Click **Proceed to Next Round** to eliminate unselected models.
+4. Repeat until one model remains.
+5. Use **Reset Arena** at any time to restart the tournament.
+
+Behavior notes:
+- Proceed is blocked when no winner is selected.
+- If all responses fail in a round, advancement is blocked and reset is required.
+- If only one model remains, arena auto-completes and displays the winner banner.
 
 ## Project structure
 
@@ -76,8 +103,9 @@ tests/
 
 ## Known limitations
 
-- Single Azure AI Foundry resource per run.
+- Single Microsoft Foundry resource per run.
 - Static pricing file (manual updates required).
-- No persistence of prompt history or results.
+- No persistence of prompt history, results, or arena state across app restarts.
 - Sequential inference execution (no parallel fan-out).
 - Local-only app; no CI/CD or hosted deployment in MVP.
+- Arena flow supports up to 5 selected deployments.

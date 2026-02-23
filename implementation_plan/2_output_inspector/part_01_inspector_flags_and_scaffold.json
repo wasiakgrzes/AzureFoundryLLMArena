@@ -1,0 +1,87 @@
+{
+  "part_id": "01",
+  "title": "Inspector Feature Flags & Module Scaffold",
+  "type": "infrastructure",
+  "goal": "Extend config.py with all inspector feature flags and create the src/inspector.py module scaffold with clear function signatures for structural and semantic checks.",
+  "scope": {
+    "in_scope": [
+      "Add feature_inspector_enabled flag (master toggle) to config",
+      "Add feature_inspector_validate_json flag",
+      "Add feature_inspector_validate_markdown flag",
+      "Add feature_inspector_validate_xml flag",
+      "Add feature_inspector_required_fields flag",
+      "Add feature_inspector_no_extra_text flag",
+      "Add feature_inspector_tone_check flag",
+      "Add feature_inspector_persona_check flag",
+      "Add feature_inspector_highlighting flag",
+      "Create src/inspector.py with function stubs and docstrings",
+      "Update .env.example with all inspector flag entries"
+    ],
+    "out_of_scope": [
+      "Validation logic implementation (Parts 02-04)",
+      "UI rendering of inspector panel (Part 05)",
+      "Semantic LLM call implementation (Part 04)",
+      "Persistence of inspection results (Week 3)"
+    ]
+  },
+  "inputs": [
+    "src/config.py — existing load_config() with _parse_bool helper from Week 1",
+    "PRD Week 2 section 4 — Inspector activation and all feature flags",
+    "PRD user story GH-W2-001"
+  ],
+  "outputs": [
+    "src/config.py — updated with inspector feature flags",
+    "src/inspector.py — new module with function stubs",
+    ".env.example — updated with inspector flag entries"
+  ],
+  "files_to_create": [
+    "src/inspector.py"
+  ],
+  "files_to_modify": [
+    "src/config.py",
+    ".env.example"
+  ],
+  "dependencies": [
+    "1_arena_engine/Part 01 — _parse_bool helper must exist in config.py"
+  ],
+  "checklist": [
+    "Add FEATURE_INSPECTOR_ENABLED to config loading (default: false)",
+    "Add FEATURE_INSPECTOR_VALIDATE_JSON to config loading (default: false)",
+    "Add FEATURE_INSPECTOR_VALIDATE_MARKDOWN to config loading (default: false)",
+    "Add FEATURE_INSPECTOR_VALIDATE_XML to config loading (default: false)",
+    "Add FEATURE_INSPECTOR_REQUIRED_FIELDS to config loading (default: false)",
+    "Add FEATURE_INSPECTOR_NO_EXTRA_TEXT to config loading (default: false)",
+    "Add FEATURE_INSPECTOR_TONE_CHECK to config loading (default: false)",
+    "Add FEATURE_INSPECTOR_PERSONA_CHECK to config loading (default: false)",
+    "Add FEATURE_INSPECTOR_HIGHLIGHTING to config loading (default: false)",
+    "Create src/inspector.py with function stubs: validate_json(), validate_markdown(), validate_xml(), check_required_fields(), check_no_extra_text(), check_tone(), check_persona(), run_all_checks()",
+    "Each stub should return a structured dict with keys: check_name, status (pass/fail/error/not_evaluated), detail",
+    "Update .env.example with all nine inspector flag entries and descriptions"
+  ],
+  "acceptance_criteria": [
+    "load_config() returns dict with all nine inspector feature flag keys",
+    "All flags default to False when not set in environment",
+    "src/inspector.py exists and is importable without errors",
+    "Function stubs return placeholder result dicts with correct structure",
+    ".env.example documents all inspector flags",
+    "Master toggle (feature_inspector_enabled) logically gates all other inspector flags"
+  ],
+  "review_focus": [
+    "Flag naming convention is consistent with arena flags from Week 1",
+    "Function stub signatures match the expected inputs for each check type",
+    "Result dict structure is uniform across all check types for easy UI rendering",
+    "No business logic implemented in stubs — clean separation for Parts 02-04"
+  ],
+  "risks_or_notes": [
+    "Nine new flags is a large addition — consider grouping in .env.example with section headers",
+    "The master toggle should be checked first in the UI to avoid unnecessary flag evaluation",
+    "Function stubs should document expected parameters clearly for implementors in Parts 02-04"
+  ],
+  "definition_of_done": [
+    "All nine inspector feature flags load correctly from config",
+    "src/inspector.py exists with all function stubs and docstrings",
+    ".env.example includes all new entries",
+    "No import errors when loading the inspector module",
+    "No regression in existing config functionality"
+  ]
+}

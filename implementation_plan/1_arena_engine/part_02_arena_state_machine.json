@@ -1,0 +1,83 @@
+{
+  "part_id": "02",
+  "title": "Arena State Machine & Round Logic",
+  "type": "domain",
+  "goal": "Implement the arena round-management logic using Streamlit session state. Track the current round number, active models, eliminated models, and arena completion status. Provide functions for round advancement, model elimination, and state reset.",
+  "scope": {
+    "in_scope": [
+      "Initialize arena session state keys: arena_round, arena_active_models, arena_eliminated_models, arena_completed, arena_winner",
+      "Create arena state initialization function that sets round 1 with all selected models active",
+      "Create advance_round() function that eliminates unselected models and increments round",
+      "Create reset_arena() function that clears all arena state and returns to initial selection",
+      "Detect arena completion when one active model remains and set arena_winner",
+      "Auto-complete arena if only one model remains after inference",
+      "Validate that at least one winner is selected before advancing",
+      "Keep arena state resilient across Streamlit reruns"
+    ],
+    "out_of_scope": [
+      "UI rendering of arena controls (Part 03)",
+      "Metrics display logic (Part 04)",
+      "Inference execution (handled by existing inference.py)",
+      "Persistence of arena state beyond session (Week 3 scope)"
+    ]
+  },
+  "inputs": [
+    "src/app.py — existing session state pattern",
+    "PRD Week 1 section 4 — Arena elimination flow",
+    "PRD user stories GH-W1-001, GH-W1-002"
+  ],
+  "outputs": [
+    "src/arena.py — new module with arena state management functions"
+  ],
+  "files_to_create": [
+    "src/arena.py"
+  ],
+  "files_to_modify": [],
+  "dependencies": [
+    "1_arena_engine/Part 01 — feature_arena_elimination flag must be available in config"
+  ],
+  "checklist": [
+    "Create src/arena.py module",
+    "Define ARENA_STATE_KEYS constant listing all arena session state keys",
+    "Create init_arena(selected_deployments) function that initializes arena_round=1, arena_active_models=selected_deployments, arena_eliminated_models=[], arena_completed=False, arena_winner=None",
+    "Create get_active_models() function that returns current arena_active_models from session state",
+    "Create get_eliminated_models() function that returns current arena_eliminated_models from session state",
+    "Create get_current_round() function that returns current arena_round from session state",
+    "Create is_arena_completed() function that returns arena_completed from session state",
+    "Create advance_round(winner_names) function that moves non-winners to eliminated list, keeps winners as active, increments round",
+    "In advance_round(), validate that winner_names is non-empty — raise ValueError if empty",
+    "In advance_round(), after updating active models, check if len(active) == 1 and set arena_completed=True, arena_winner=active[0]",
+    "Create reset_arena() function that clears all ARENA_STATE_KEYS from session state",
+    "Create is_arena_initialized() function that checks whether arena state keys exist in session state"
+  ],
+  "acceptance_criteria": [
+    "init_arena() correctly sets all arena state keys in st.session_state",
+    "advance_round(['model_a']) with ['model_a', 'model_b'] active moves 'model_b' to eliminated and keeps 'model_a' active",
+    "advance_round() with empty winner list raises ValueError",
+    "Arena auto-completes when one model remains after advancement",
+    "reset_arena() clears all arena keys and allows fresh initialization",
+    "get_current_round() returns incrementing round numbers across advances",
+    "Arena state persists across Streamlit reruns within a session",
+    "Functions are testable without Streamlit dependency via mocked session state"
+  ],
+  "review_focus": [
+    "Session state key naming avoids collisions with existing app state keys",
+    "State mutation is explicit and traceable (no hidden side effects)",
+    "Round advancement logic handles edge cases (single model selected, all models selected as winners)",
+    "Elimination correctly moves models between active and eliminated lists"
+  ],
+  "risks_or_notes": [
+    "Streamlit reruns the script on each interaction — arena state must be in st.session_state to survive",
+    "If the user changes the deployment selection mid-arena, consider whether to auto-reset or warn",
+    "The model identity comparison should use deployment_name as the unique key",
+    "Consider providing arena state as a snapshot dict for easier testing and debugging"
+  ],
+  "definition_of_done": [
+    "src/arena.py exists with all listed functions",
+    "Arena initialization, advancement, and reset work correctly",
+    "Round number increments properly across multiple advances",
+    "Auto-completion triggers when one model remains",
+    "Validation prevents advancement with zero winners",
+    "All functions are independently unit-testable"
+  ]
+}

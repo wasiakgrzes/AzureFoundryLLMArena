@@ -1,0 +1,79 @@
+{
+  "part_id": "01",
+  "title": "Arena Feature Flags & Configuration Extension",
+  "type": "infrastructure",
+  "goal": "Extend the existing config module to load and expose arena-specific feature flags (feature_arena_elimination, feature_arena_metrics_panel, feature_arena_cost_display) from .env, with documented defaults and boolean parsing.",
+  "scope": {
+    "in_scope": [
+      "Add feature_arena_elimination flag to config loading (default: false)",
+      "Add feature_arena_metrics_panel flag to config loading (default: false)",
+      "Add feature_arena_cost_display flag to config loading (default: false)",
+      "Parse boolean strings from .env (true/false, 1/0, yes/no) consistently",
+      "Return feature flags as part of the config dictionary",
+      "Update .env.example with new arena feature flag entries and descriptions",
+      "Ensure disabled flags result in zero arena-specific UI rendering"
+    ],
+    "out_of_scope": [
+      "Arena state machine logic (Part 02)",
+      "UI rendering of arena controls (Part 03)",
+      "Inspector or persistence feature flags (Week 2/3 scope)",
+      "Runtime flag toggling without restart"
+    ]
+  },
+  "inputs": [
+    "src/config.py — existing load_config() function",
+    ".env.example — existing template",
+    "PRD Week 1 section 4 — Feature flags requirement",
+    "PRD user story GH-W1-005"
+  ],
+  "outputs": [
+    "src/config.py — updated with arena feature flag loading",
+    ".env.example — updated with arena feature flag entries"
+  ],
+  "files_to_create": [],
+  "files_to_modify": [
+    "src/config.py",
+    ".env.example"
+  ],
+  "dependencies": [
+    "0_mvp/Part 02 — config.py must exist with load_config()"
+  ],
+  "checklist": [
+    "Add a _parse_bool(value, default) helper function in config.py that handles true/false/1/0/yes/no strings",
+    "Read FEATURE_ARENA_ELIMINATION from os.environ and parse as boolean (default: false)",
+    "Read FEATURE_ARENA_METRICS_PANEL from os.environ and parse as boolean (default: false)",
+    "Read FEATURE_ARENA_COST_DISPLAY from os.environ and parse as boolean (default: false)",
+    "Add all three flags to the config dictionary returned by load_config()",
+    "Update .env.example with FEATURE_ARENA_ELIMINATION=false entry and comment",
+    "Update .env.example with FEATURE_ARENA_METRICS_PANEL=false entry and comment",
+    "Update .env.example with FEATURE_ARENA_COST_DISPLAY=false entry and comment",
+    "Verify that missing flag env vars resolve to their documented defaults without error"
+  ],
+  "acceptance_criteria": [
+    "load_config() returns dict with keys: feature_arena_elimination, feature_arena_metrics_panel, feature_arena_cost_display",
+    "All three flags default to False when not set in environment",
+    "Setting FEATURE_ARENA_ELIMINATION=true in .env results in config['feature_arena_elimination'] == True",
+    "Boolean parsing handles case-insensitive values (True, TRUE, true, 1, yes)",
+    ".env.example documents all three flags with clear descriptions",
+    "Existing config keys (endpoint, api_key) remain unchanged",
+    "Flag defaults are deterministic and documented"
+  ],
+  "review_focus": [
+    "Boolean parsing is robust and handles edge cases (empty string, whitespace)",
+    "Flag names in .env match the config dictionary keys by consistent convention",
+    "No breaking changes to existing load_config() return structure",
+    "Default values align with PRD specification"
+  ],
+  "risks_or_notes": [
+    "Convention decision: .env uses UPPER_SNAKE_CASE while config dict uses lower_snake_case — maintain consistent mapping",
+    "Consider extracting _parse_bool to a shared utility if more flags are added in Week 2/3",
+    "Empty string for a flag should resolve to the default (false), not raise an error"
+  ],
+  "definition_of_done": [
+    "src/config.py includes arena feature flag loading with boolean parsing",
+    "All three flags resolve correctly from .env values",
+    "Missing flags default to False without errors",
+    ".env.example includes all new entries with descriptions",
+    "Existing config functionality is not regressed"
+  ]
+}
