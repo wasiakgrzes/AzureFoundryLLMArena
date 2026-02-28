@@ -41,11 +41,26 @@ For API-key inference endpoints that do not expose deployment listing APIs, set 
 FEATURE_ARENA_ELIMINATION=false
 FEATURE_ARENA_METRICS_PANEL=false
 FEATURE_ARENA_COST_DISPLAY=false
+FEATURE_INSPECTOR_ENABLED=false
+FEATURE_INSPECTOR_VALIDATE_JSON=false
+FEATURE_INSPECTOR_VALIDATE_MARKDOWN=false
+FEATURE_INSPECTOR_VALIDATE_XML=false
+FEATURE_INSPECTOR_REQUIRED_FIELDS=false
+FEATURE_INSPECTOR_NO_EXTRA_TEXT=false
+FEATURE_INSPECTOR_TONE_CHECK=false
+FEATURE_INSPECTOR_PERSONA_CHECK=false
+FEATURE_INSPECTOR_HIGHLIGHTING=false
 ```
 
 - `FEATURE_ARENA_ELIMINATION=true` enables tournament-style elimination rounds.
 - `FEATURE_ARENA_METRICS_PANEL=true` shows per-model metrics (model name, latency, token usage).
 - `FEATURE_ARENA_COST_DISPLAY=true` shows the static transparency note: `Cost estimation not available via SDK — see pricing page`.
+- `FEATURE_INSPECTOR_ENABLED=true` enables the Output Inspector panel.
+- `FEATURE_INSPECTOR_VALIDATE_JSON|MARKDOWN|XML=true` enables deterministic format checks for the selected format.
+- `FEATURE_INSPECTOR_REQUIRED_FIELDS=true` enables required top-level JSON key checks.
+- `FEATURE_INSPECTOR_NO_EXTRA_TEXT=true` detects prefix/suffix text outside the structured block.
+- `FEATURE_INSPECTOR_TONE_CHECK=true` and/or `FEATURE_INSPECTOR_PERSONA_CHECK=true` enables semantic checks via one inspector model call per response.
+- `FEATURE_INSPECTOR_HIGHLIGHTING=true` enables color-coded inspector summaries in result cards.
 
 ## Run the app
 
@@ -77,6 +92,37 @@ Behavior notes:
 - If all responses fail in a round, advancement is blocked and reset is required.
 - If only one model remains, arena auto-completes and displays the winner banner.
 
+## Output Inspector System
+
+When `FEATURE_INSPECTOR_ENABLED=true`:
+
+1. Open **Output Inspector** in the sidebar.
+2. Choose validation format (`json`, `markdown`, or `xml`).
+3. Optionally configure required fields and no-extra-text checks.
+4. Optionally configure expected tone/persona and select an inspector deployment.
+5. Submit prompt and review per-model check badges.
+
+Inspector checks:
+- Structural checks (local): JSON, Markdown, XML parsing heuristics.
+- Required fields (local): top-level JSON keys only.
+- No-extra-text (local): prefix/suffix detection outside JSON/XML block.
+- Semantic checks (model-assisted): tone/persona adherence with structured reason text.
+
+Behavior and failure handling:
+- Inspector failures are non-blocking; arena results still render.
+- Empty outputs return structured failures instead of raw exceptions.
+- Invalid JSON with required fields configured returns `not_evaluated` field status.
+- Local checks still run when semantic checks fail.
+
+Security notes:
+- Highlight rendering escapes model output before HTML rendering.
+- Inspector prompts do not include API keys or runtime secrets.
+
+Current limitations:
+- Markdown structure and no-extra-text checks are heuristic-based.
+- Semantic checks add latency proportional to number of model responses.
+- Inspector results are not persisted across app restarts.
+
 ## Project structure
 
 ```
@@ -86,6 +132,7 @@ src/
 	client.py         # AIProjectClient initialization
 	discovery.py      # Deployment discovery and filtering
 	inference.py      # Inference execution and error isolation
+	inspector.py      # Output Inspector checks and semantic inspection helpers
 	pricing.py        # Pricing load + cost calculator
 	export.py         # Best-model export JSON generation
 	model_pricing.json

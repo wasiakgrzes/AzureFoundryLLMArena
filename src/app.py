@@ -19,6 +19,7 @@ try:
 	from src.discovery import discover_deployments
 	from src.export import generate_export_config
 	from src.inference import run_batch_inference
+	from src.inspector import highlighted_output_html, run_all_checks
 	from src.pricing import calculate_cost
 except ModuleNotFoundError:
 	from arena import (
@@ -37,6 +38,7 @@ except ModuleNotFoundError:
 	from discovery import discover_deployments
 	from export import generate_export_config
 	from inference import run_batch_inference
+	from inspector import highlighted_output_html, run_all_checks
 	from pricing import calculate_cost
 
 
@@ -123,6 +125,17 @@ def _initialize_state() -> None:
 		"results": [],
 		"best_model_name": None,
 		"arena_initial_selection": [],
+		"inspector_format": "n/a",
+		"inspector_required_fields_input": "",
+		"inspector_expected_tone_preset": "",
+		"inspector_expected_tone_custom": "",
+		"inspector_expected_tone": "",
+		"inspector_expected_persona": "",
+		"inspector_custom_instructions": "",
+		"inspector_task_fulfillment_report": False,
+		"inspector_deployment_name": "",
+		"inspector_timeout_seconds": 30,
+		"inspector_results": {},
 	}
 
 	for key, value in defaults.items():
@@ -143,7 +156,12 @@ def _load_startup_dependencies() -> None:
 		)
 
 
-def _render_results(results: list[dict], metrics_enabled: bool) -> None:
+def _render_results(
+	results: list[dict],
+	metrics_enabled: bool,
+	inspector_results_by_deployment: dict[str, list[dict]] | None = None,
+	highlighting_enabled: bool = False,
+) -> None:
 	if not results:
 		return
 
@@ -152,7 +170,9 @@ def _render_results(results: list[dict], metrics_enabled: bool) -> None:
 
 	for result, column in zip(results, columns):
 		with column:
-			st.subheader(str(result.get("deployment_name", "unknown")))
+			deployment_name = str(result.get("deployment_name", "unknown"))
+			st.subheader(deployment_name)
+			checks = (inspector_results_by_deployment or {}).get(deployment_name, [])
 
 			error = result.get("error")
 			if error is not None:
@@ -165,7 +185,28 @@ def _render_results(results: list[dict], metrics_enabled: bool) -> None:
 			elif isinstance(output_text, str) and not output_text.strip():
 				st.text("Model returned an empty response")
 			else:
-				st.text(output_text)
+				if highlighting_enabled and checks:
+					st.markdown(highlighted_output_html(output_text, checks), unsafe_allow_html=True)
+				else:
+					st.text(output_text)
+
+			for check in checks:
+				check_name = str(check.get("check_name", "check"))
+				status = str(check.get("status", "not_evaluated"))
+				detail = str(check.get("detail", ""))
+				label = f"{check_name}: {status}"
+
+				if status == "pass":
+					st.success(label)
+				elif status == "fail":
+					st.error(label)
+				elif status == "error":
+					st.warning(label)
+				else:
+					st.info(label)
+
+				if detail:
+					st.caption(detail)
 
 			if metrics_enabled:
 				st.caption(f"Model: {str(result.get('model_name') or 'unknown')}")
@@ -222,6 +263,80 @@ def _successful_result_candidates(
 		)
 
 	return candidates
+
+
+def _parse_required_fields(raw_value: str) -> list[str]:
+	return [item.strip() for item in raw_value.split(",") if item.strip()]
+
+
+def _enabled_inspector_checks(config: dict, format_type: str) -> dict[str, bool]:
+	format_key = (format_type or "").strip().lower()
+	format_selected = format_key in {"json", "markdown", "xml"}
+	return {
+		"validate_json": bool(config.get("feature_inspector_validate_json", False)) and format_selected and format_key == "json",
+		"validate_markdown": bool(config.get("feature_inspector_validate_markdown", False)) and format_selected and format_key == "markdown",
+		"validate_xml": bool(config.get("feature_inspector_validate_xml", False)) and format_selected and format_key == "xml",
+		"required_fields": bool(config.get("feature_inspector_required_fields", False)),
+		"no_extra_text": bool(config.get("feature_inspector_no_extra_text", False)) and format_selected,
+		"tone_check": bool(config.get("feature_inspector_tone_check", False)),
+		"persona_check": bool(config.get("feature_inspector_persona_check", False)),
+	}
+
+
+def _resolve_expected_tone() -> str:
+	preset = str(st.session_state.get("inspector_expected_tone_preset", "")).strip().lower()
+	if preset == "custom":
+		return str(st.session_state.get("inspector_expected_tone_custom", "")).strip()
+	return preset
+
+
+def _run_inspector_for_results(
+	config: dict,
+	results: list[dict],
+	client: Any,
+	inspector_format: str,
+	original_prompt: str,
+	required_fields: list[str],
+	expected_tone: str,
+	expected_persona: str,
+	custom_instructions: str,
+	include_task_fulfillment_report: bool,
+	inspector_deployment: str,
+	timeout_seconds: int,
+) -> dict[str, list[dict]]:
+	enabled_checks = _enabled_inspector_checks(config, inspector_format)
+	if not any(enabled_checks.values()):
+		return {}
+
+	inspections: dict[str, list[dict]] = {}
+	for result in results:
+		deployment_name = str(result.get("deployment_name", "unknown"))
+		if result.get("error") is not None:
+			inspections[deployment_name] = [
+				{
+					"check_name": "summary",
+					"status": "not_evaluated",
+					"detail": "Inspector skipped because inference failed",
+				}
+			]
+			continue
+
+		inspections[deployment_name] = run_all_checks(
+			text=result.get("output_text"),
+			format_type=inspector_format,
+			required_fields=required_fields,
+			enabled_checks=enabled_checks,
+			inspector_client=client,
+			inspector_deployment=inspector_deployment,
+			expected_tone=expected_tone,
+			expected_persona=expected_persona,
+			custom_instructions=custom_instructions,
+			include_task_fulfillment_report=include_task_fulfillment_report,
+			original_prompt=original_prompt,
+			timeout_seconds=timeout_seconds,
+		)
+
+	return inspections
 
 
 def _render_export_section(config: dict, results: list[dict], selected_deployments: list[dict]) -> None:
@@ -410,6 +525,8 @@ def main() -> None:
 	arena_enabled = bool(config.get("feature_arena_elimination", False))
 	metrics_enabled = bool(config.get("feature_arena_metrics_panel", False))
 	cost_notice_enabled = bool(config.get("feature_arena_cost_display", False))
+	inspector_enabled = bool(config.get("feature_inspector_enabled", False))
+	highlighting_enabled = bool(config.get("feature_inspector_highlighting", False))
 
 	if len(deployments) == 0:
 		st.warning("No compatible text-based deployments were found in the configured Foundry resource.")
@@ -484,6 +601,73 @@ def main() -> None:
 			type="primary",
 		)
 
+		if inspector_enabled:
+			with st.expander("Output Inspector", expanded=False):
+				st.selectbox(
+					"Validation format",
+					options=["n/a", "json", "markdown", "xml"],
+					format_func=lambda item: "N/A" if item == "n/a" else item,
+					key="inspector_format",
+				)
+
+				if bool(config.get("feature_inspector_required_fields", False)):
+					st.text_input(
+						"Required fields (comma-separated)",
+						key="inspector_required_fields_input",
+					)
+
+				if bool(config.get("feature_inspector_tone_check", False)):
+					st.selectbox(
+						"Expected tone",
+						options=["", "formal", "relaxed", "casual", "serious", "funny", "respectful", "custom"],
+						format_func=lambda item: item if item else "Select tone (optional)",
+						key="inspector_expected_tone_preset",
+					)
+					if str(st.session_state.get("inspector_expected_tone_preset", "")) == "custom":
+						st.text_input(
+							"Custom tone",
+							key="inspector_expected_tone_custom",
+						)
+
+				if bool(config.get("feature_inspector_persona_check", False)):
+					st.text_input(
+						"Expected persona",
+						key="inspector_expected_persona",
+					)
+
+				st.text_area(
+					"Custom inspector instructions",
+					key="inspector_custom_instructions",
+					height=110,
+					placeholder="Optional additional instructions for semantic inspector...",
+				)
+
+				st.checkbox(
+					"Additional task fulfillment report",
+					key="inspector_task_fulfillment_report",
+				)
+
+				st.session_state["inspector_expected_tone"] = _resolve_expected_tone()
+
+				need_semantic_deployment = (
+					bool(config.get("feature_inspector_tone_check", False))
+					or bool(config.get("feature_inspector_persona_check", False))
+					or bool(st.session_state.get("inspector_task_fulfillment_report", False))
+				)
+				if need_semantic_deployment:
+					inspector_options = [""] + deployment_names
+					default_name = str(st.session_state.get("inspector_deployment_name", ""))
+					default_index = 0
+					if default_name in inspector_options:
+						default_index = inspector_options.index(default_name)
+					selected_inspector_deployment = st.selectbox(
+						"Inspector deployment",
+						options=inspector_options,
+						index=default_index,
+						format_func=lambda item: item if item else "Select deployment",
+					)
+					st.session_state["inspector_deployment_name"] = selected_inspector_deployment
+
 	if submit_clicked:
 		if not prompt.strip():
 			st.warning("Prompt cannot be empty. Please enter a prompt before submitting.")
@@ -556,6 +740,29 @@ def main() -> None:
 			conversation_history_by_deployment=conversation_history_by_deployment,
 		)
 
+		if inspector_enabled:
+			with st.spinner("Running output inspector..."):
+				st.session_state["inspector_results"] = _run_inspector_for_results(
+					config=config,
+					results=st.session_state.get("results", []),
+					client=st.session_state["client"],
+					inspector_format=str(st.session_state.get("inspector_format", "json")),
+					original_prompt=prompt,
+					required_fields=_parse_required_fields(
+						str(st.session_state.get("inspector_required_fields_input", ""))
+					),
+					expected_tone=str(st.session_state.get("inspector_expected_tone", "")),
+					expected_persona=str(st.session_state.get("inspector_expected_persona", "")),
+					custom_instructions=str(st.session_state.get("inspector_custom_instructions", "")),
+					include_task_fulfillment_report=bool(
+						st.session_state.get("inspector_task_fulfillment_report", False)
+					),
+					inspector_deployment=str(st.session_state.get("inspector_deployment_name", "")),
+					timeout_seconds=int(st.session_state.get("inspector_timeout_seconds", 30)),
+				)
+		else:
+			st.session_state["inspector_results"] = {}
+
 		if arena_enabled:
 			current_round = get_current_round()
 			history = st.session_state.get("arena_results_history", {})
@@ -583,7 +790,12 @@ def main() -> None:
 	if cost_notice_enabled and st.session_state.get("results", []):
 		st.info("Cost estimation not available via SDK — see pricing page")
 
-	_render_results(st.session_state.get("results", []), metrics_enabled=metrics_enabled)
+	_render_results(
+		st.session_state.get("results", []),
+		metrics_enabled=metrics_enabled,
+		inspector_results_by_deployment=st.session_state.get("inspector_results", {}),
+		highlighting_enabled=inspector_enabled and highlighting_enabled,
+	)
 
 	if arena_enabled:
 		_render_arena_results_history(metrics_enabled=metrics_enabled)
