@@ -1,6 +1,9 @@
 from typing import Any
+import uuid
 
 import streamlit as st
+
+import logging
 
 try:
 	from src.arena import (
@@ -20,6 +23,14 @@ try:
 	from src.export import generate_export_config
 	from src.inference import run_batch_inference
 	from src.inspector import highlighted_output_html, run_all_checks
+	from src.persistence import (
+		build_arena_record,
+		build_arena_session_record,
+		init_persistence,
+		query_leaderboard_data,
+		query_prompt_history,
+		write_arena_result,
+	)
 	from src.pricing import calculate_cost
 except ModuleNotFoundError:
 	from arena import (
@@ -39,7 +50,17 @@ except ModuleNotFoundError:
 	from export import generate_export_config
 	from inference import run_batch_inference
 	from inspector import highlighted_output_html, run_all_checks
+	from persistence import (
+		build_arena_record,
+		build_arena_session_record,
+		init_persistence,
+		query_leaderboard_data,
+		query_prompt_history,
+		write_arena_result,
+	)
 	from pricing import calculate_cost
+
+logger = logging.getLogger(__name__)
 
 
 MAX_SELECTION = 5
@@ -73,7 +94,7 @@ def _selected_deployments_for_active_models(
 
 
 def _is_submit_disabled(selected_names: list[str], prompt: str) -> bool:
-	return len(selected_names) == 0 or len(selected_names) > MAX_SELECTION
+	return len(selected_names) == 0 or len(selected_names) > MAX_SELECTION or not prompt.strip()
 
 
 def _format_token_value(value: Any) -> str:
@@ -136,6 +157,8 @@ def _initialize_state() -> None:
 		"inspector_deployment_name": "",
 		"inspector_timeout_seconds": 30,
 		"inspector_results": {},
+		"cosmos_container": None,
+		"persistence_degraded": False,
 	}
 
 	for key, value in defaults.items():
@@ -154,6 +177,19 @@ def _load_startup_dependencies() -> None:
 		st.session_state["deployments"] = discover_deployments(
 			st.session_state["client"], timeout_seconds=30
 		)
+
+	# Cosmos persistence — non-blocking init
+	config = st.session_state["config"] or {}
+	if (
+		bool(config.get("feature_persistence_cosmos"))
+		and st.session_state["cosmos_container"] is None
+		and not st.session_state.get("persistence_degraded", False)
+	):
+		try:
+			st.session_state["cosmos_container"] = init_persistence(config)
+		except Exception as exc:
+			logger.warning("Cosmos persistence init failed: %s", exc)
+			st.session_state["persistence_degraded"] = True
 
 
 def _render_results(
@@ -489,17 +525,238 @@ def _render_arena_controls(
 		st.error(str(ex))
 		return
 
-	st.session_state["selected_deployment_names"] = get_active_models()
+	st.session_state["_pending_deployment_names"] = get_active_models()
 	st.session_state["results"] = []
 	st.session_state["submitted_deployments"] = []
 	st.session_state["best_model_name"] = None
 	st.session_state["prompt_input"] = ""
 
 	if is_arena_completed():
+		# Persist full arena stats now that winner is known
+		persistence_enabled = bool(config.get("feature_persistence_cosmos", False))
+		if persistence_enabled and st.session_state.get("cosmos_container") is not None:
+			_persist_arena_final_results(config)
 		st.rerun()
 
 	st.success("Round advanced. Edit prompt if needed, then click Submit to run the next round.")
 	st.rerun()
+
+
+# ---------------------------------------------------------------------------
+# Persistence helpers
+# ---------------------------------------------------------------------------
+
+
+def _persist_arena_results(
+	config: dict,
+	results: list[dict],
+	prompt: str,
+	winner: str | None,
+	eliminated_models: list[str],
+	models_compared: list[str],
+) -> None:
+	"""Write arena result records to Cosmos (non-blocking).
+
+	One record per deployment in *results* is persisted.  Failures are
+	logged and surfaced as a warning but do **not** interrupt the session.
+	"""
+	container = st.session_state.get("cosmos_container")
+	if container is None:
+		return
+
+	elimination_reasons = {name: "eliminated" for name in (eliminated_models or [])}
+
+	for result in results:
+		if result.get("error") is not None:
+			continue
+
+		arena_data = {
+			"prompt_text": prompt,
+			"models_compared": models_compared,
+			"winner": winner,
+			"elimination_reasons": elimination_reasons,
+			"deployment_name": result.get("deployment_name", "unknown"),
+			"model_name": result.get("model_name"),
+			"model_version": result.get("model_name"),
+			"latency_ms": result.get("latency_ms"),
+			"input_tokens": result.get("input_tokens"),
+			"output_tokens": result.get("output_tokens"),
+			"total_tokens": result.get("total_tokens"),
+		}
+
+		try:
+			record = build_arena_record(arena_data, config)
+			write_arena_result(container, record)
+		except Exception as exc:
+			logger.warning("Failed to persist result for %s: %s", result.get("deployment_name"), exc)
+			st.warning(f"Persistence warning: could not save result for {result.get('deployment_name')}. Session continues.")
+
+
+def _persist_arena_final_results(config: dict) -> None:
+	"""Persist comprehensive stats for every deployment when the arena finishes.
+
+	Reads the full ``arena_results_history`` from session state, aggregates
+	per-deployment round data, and writes one document per deployment with
+	winner, elimination round, and aggregate statistics.
+	"""
+	container = st.session_state.get("cosmos_container")
+	if container is None:
+		return
+
+	winner = get_arena_winner()
+	eliminated = get_eliminated_models()
+	results_history: dict = st.session_state.get("arena_results_history", {})
+
+	if not results_history:
+		return
+
+	# Collect all models that participated across rounds
+	all_models: set[str] = set()
+	for round_data in results_history.values():
+		for result in round_data.get("results", []):
+			all_models.add(str(result.get("deployment_name", "unknown")))
+
+	models_compared = sorted(all_models)
+	actual_rounds = len(results_history)
+	arena_session_id = str(uuid.uuid4())
+
+	# Group per-deployment round details
+	deployment_rounds: dict[str, list[dict]] = {}
+	for round_num, round_data in sorted(
+		results_history.items(), key=lambda x: int(x[0])
+	):
+		prompt_text = round_data.get("prompt", "")
+		for result in round_data.get("results", []):
+			if result.get("error") is not None:
+				continue
+			dep = str(result.get("deployment_name", "unknown"))
+			if dep not in deployment_rounds:
+				deployment_rounds[dep] = []
+			deployment_rounds[dep].append(
+				{
+					"round": int(round_num),
+					"prompt_text": prompt_text,
+					"model_name": result.get("model_name"),
+					"latency_ms": result.get("latency_ms"),
+					"input_tokens": result.get("input_tokens"),
+					"output_tokens": result.get("output_tokens"),
+					"total_tokens": result.get("total_tokens"),
+				}
+			)
+
+	# Write one comprehensive record per deployment
+	for dep_name, rounds in deployment_rounds.items():
+		try:
+			record = build_arena_session_record(
+				deployment_name=dep_name,
+				arena_session_id=arena_session_id,
+				winner=winner,
+				total_rounds=actual_rounds,
+				models_compared=models_compared,
+				eliminated_models=eliminated,
+				round_details=rounds,
+				config=config,
+			)
+			write_arena_result(container, record)
+		except Exception as exc:
+			logger.warning("Failed to persist final arena result for %s: %s", dep_name, exc)
+			st.warning(f"Persistence warning: could not save final result for {dep_name}.")
+
+
+def _render_leaderboard(config: dict) -> None:
+	"""Render a leaderboard table aggregated from Cosmos history."""
+	if not bool(config.get("feature_arena_leaderboard")):
+		return
+
+	container = st.session_state.get("cosmos_container")
+	if container is None:
+		return
+
+	with st.expander("Leaderboard", expanded=False):
+		try:
+			raw = query_leaderboard_data(container)
+		except Exception as exc:
+			st.warning(f"Could not load leaderboard data: {exc}")
+			return
+
+		if not raw:
+			st.info("No historical arena data yet.")
+			return
+
+		# Aggregate in Python
+		stats: dict[str, dict[str, Any]] = {}
+		for item in raw:
+			dep = item.get("deployment_name", "unknown")
+			if dep not in stats:
+				stats[dep] = {"wins": 0, "tasks": 0, "total_latency": 0, "latency_count": 0}
+			stats[dep]["tasks"] += 1
+			if item.get("is_winner", item.get("winner") == dep):
+				stats[dep]["wins"] += 1
+			lat = item.get("latency_ms")
+			if lat is not None:
+				stats[dep]["total_latency"] += lat
+				stats[dep]["latency_count"] += 1
+
+		rows: list[dict[str, Any]] = []
+		for dep, s in sorted(stats.items(), key=lambda kv: kv[1]["wins"], reverse=True):
+			avg_lat = (
+				round(s["total_latency"] / s["latency_count"])
+				if s["latency_count"] > 0
+				else None
+			)
+			win_rate = round(s["wins"] / s["tasks"] * 100, 1) if s["tasks"] > 0 else 0
+			rows.append(
+				{
+					"Deployment": dep,
+					"Wins": s["wins"],
+					"Win Rate (%)": win_rate,
+					"Avg Latency (ms)": avg_lat if avg_lat is not None else "N/A",
+					"Tasks": s["tasks"],
+				}
+			)
+
+		st.table(rows)
+
+
+def _render_prompt_memory_selector(config: dict) -> str | None:
+	"""Render prompt-history dropdown in sidebar. Returns selected prompt text or None."""
+	if not bool(config.get("feature_prompt_memory_enabled")):
+		return None
+
+	container = st.session_state.get("cosmos_container")
+	if container is None:
+		return None
+
+	try:
+		history = query_prompt_history(container, limit=30)
+	except Exception as exc:
+		logger.warning("Prompt history query failed: %s", exc)
+		return None
+
+	if not history:
+		return None
+
+	options = [""] + [
+		(item.get("prompt_text") or item.get("prompt_hash", "?"))[:120]
+		for item in history
+	]
+	labels = ["Select a previous prompt..."] + [
+		f"{(item.get('prompt_text') or item.get('prompt_hash', '?'))[:80]} ({item.get('timestamp', '')[:10]})"
+		for item in history
+	]
+
+	selected_idx = st.selectbox(
+		"Prompt History",
+		options=range(len(options)),
+		format_func=lambda i: labels[i],
+		key="prompt_memory_selector",
+	)
+
+	if selected_idx and selected_idx > 0:
+		chosen = history[selected_idx - 1]
+		return chosen.get("prompt_text") or None
+
+	return None
 
 
 def main() -> None:
@@ -527,6 +784,12 @@ def main() -> None:
 	cost_notice_enabled = bool(config.get("feature_arena_cost_display", False))
 	inspector_enabled = bool(config.get("feature_inspector_enabled", False))
 	highlighting_enabled = bool(config.get("feature_inspector_highlighting", False))
+	persistence_enabled = bool(config.get("feature_persistence_cosmos", False))
+	leaderboard_enabled = bool(config.get("feature_arena_leaderboard", False))
+	prompt_memory_enabled = bool(config.get("feature_prompt_memory_enabled", False))
+
+	if persistence_enabled and st.session_state.get("persistence_degraded"):
+		st.warning("Cosmos DB persistence is unavailable. Arena results will not be saved this session.")
 
 	if len(deployments) == 0:
 		st.warning("No compatible text-based deployments were found in the configured Foundry resource.")
@@ -536,19 +799,36 @@ def main() -> None:
 		selected_names = st.multiselect(
 			"Select deployments (1–5)",
 			options=deployment_names,
-			default=[name for name in st.session_state["selected_deployment_names"] if name in deployment_names],
+			default=None,
+			key="selected_deployment_names",
 		)
-
-		st.session_state["selected_deployment_names"] = selected_names
 
 		if len(selected_names) > MAX_SELECTION:
 			st.warning("You can select at most 5 deployments.")
 
 		prompt = ""
+
+		# Prompt memory: previous-prompt selector
+		remembered_prompt = None
+		if prompt_memory_enabled and persistence_enabled:
+			remembered_prompt = _render_prompt_memory_selector(config)
+			# Only apply when the user just picked a *new* prompt from the dropdown
+			if remembered_prompt and remembered_prompt != st.session_state.get("_last_applied_prompt"):
+				st.session_state["_last_applied_prompt"] = remembered_prompt
+				st.session_state["prompt_input"] = remembered_prompt
+				if arena_enabled:
+					current_rnd = get_current_round() if is_arena_initialized() else 1
+					widget_key = f"arena_round_prompt_input_{current_rnd}"
+					st.session_state[widget_key] = remembered_prompt
+					arena_prompts_mem = st.session_state.get("arena_prompts", {})
+					arena_prompts_mem[current_rnd] = remembered_prompt
+					st.session_state["arena_prompts"] = arena_prompts_mem
+
 		if arena_enabled:
 			arena_prompts = st.session_state.get("arena_prompts", {})
 			arena_continue_by_round = st.session_state.get("arena_continue_by_round", {})
 			current_round = get_current_round() if is_arena_initialized() else 1
+			arena_completed = is_arena_completed() if is_arena_initialized() else False
 
 			for round_number in range(1, current_round):
 				previous_prompt = str(arena_prompts.get(round_number, ""))
@@ -566,34 +846,37 @@ def main() -> None:
 					key=f"arena_round_continue_display_{round_number}",
 				)
 
-			active_prompt = str(arena_prompts.get(current_round, ""))
-			prompt = st.text_area(
-				f"Round {current_round} Prompt",
-				value=active_prompt,
-				height=180,
-				placeholder=f"Enter prompt for round {current_round}...",
-				key=f"arena_round_prompt_input_{current_round}",
-			)
-			continue_default = bool(arena_continue_by_round.get(current_round, False))
-			continue_disabled = current_round == 1
-			continue_value = st.checkbox(
-				"Continue previous message thread",
-				value=continue_default,
-				disabled=continue_disabled,
-				key=f"arena_round_continue_input_{current_round}",
-			)
-			arena_continue_by_round[current_round] = continue_value if not continue_disabled else False
-			arena_prompts[current_round] = prompt
-			st.session_state["arena_prompts"] = arena_prompts
-			st.session_state["arena_continue_by_round"] = arena_continue_by_round
+			# Only show the editable prompt box if the arena is still running
+			if not arena_completed:
+				# Seed the widget key with stored prompt only on first encounter
+				widget_key = f"arena_round_prompt_input_{current_round}"
+				if widget_key not in st.session_state:
+					st.session_state[widget_key] = str(arena_prompts.get(current_round, ""))
+				prompt = st.text_area(
+					f"Round {current_round} Prompt",
+					height=180,
+					placeholder=f"Enter prompt for round {current_round}...",
+					key=widget_key,
+				)
+				continue_default = bool(arena_continue_by_round.get(current_round, False))
+				continue_disabled = current_round == 1
+				continue_value = st.checkbox(
+					"Continue previous message thread",
+					value=continue_default,
+					disabled=continue_disabled,
+					key=f"arena_round_continue_input_{current_round}",
+				)
+				arena_continue_by_round[current_round] = continue_value if not continue_disabled else False
+				arena_prompts[current_round] = prompt
+				st.session_state["arena_prompts"] = arena_prompts
+				st.session_state["arena_continue_by_round"] = arena_continue_by_round
 		else:
 			prompt = st.text_area(
 				"Prompt",
-				value=st.session_state["prompt_input"],
 				height=180,
 				placeholder="Enter one prompt to compare across selected deployments...",
+				key="prompt_input",
 			)
-			st.session_state["prompt_input"] = prompt
 
 		submit_clicked = st.button(
 			"Submit",
@@ -787,6 +1070,20 @@ def main() -> None:
 
 			st.session_state["arena_conversation_history"] = conversation_history
 
+		# Persist results to Cosmos DB (non-blocking) — non-arena only.
+		# Arena results are persisted when the winner is selected
+		# (see _render_arena_controls → _persist_arena_final_results).
+		if persistence_enabled and not arena_enabled and st.session_state.get("cosmos_container") is not None:
+			models_list = [str(d.get("deployment_name", "unknown")) for d in deployments_for_inference]
+			_persist_arena_results(
+				config=config,
+				results=st.session_state.get("results", []),
+				prompt=prompt,
+				winner=None,
+				eliminated_models=[],
+				models_compared=models_list,
+			)
+
 	if cost_notice_enabled and st.session_state.get("results", []):
 		st.info("Cost estimation not available via SDK — see pricing page")
 
@@ -812,6 +1109,10 @@ def main() -> None:
 		results=st.session_state.get("results", []),
 		selected_deployments=st.session_state.get("submitted_deployments", []),
 	)
+
+	# Leaderboard (Week 3)
+	if leaderboard_enabled and persistence_enabled:
+		_render_leaderboard(config)
 
 
 if __name__ == "__main__":

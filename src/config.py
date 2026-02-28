@@ -86,12 +86,63 @@ def load_config() -> Dict[str, Any]:
         default=False,
     )
 
+    # --- Week 3: Persistence, Leaderboard, Prompt Memory, Key Vault ---
+    feature_persistence_cosmos = _parse_bool(
+        os.environ.get("FEATURE_PERSISTENCE_COSMOS"),
+        default=False,
+    )
+    feature_arena_leaderboard = _parse_bool(
+        os.environ.get("FEATURE_ARENA_LEADERBOARD"),
+        default=False,
+    )
+    feature_prompt_memory_enabled = _parse_bool(
+        os.environ.get("FEATURE_PROMPT_MEMORY_ENABLED"),
+        default=False,
+    )
+    feature_keyvault_enabled = _parse_bool(
+        os.environ.get("FEATURE_KEYVAULT_ENABLED"),
+        default=False,
+    )
+    persist_prompt_text = _parse_bool(
+        os.environ.get("PERSIST_PROMPT_TEXT"),
+        default=False,
+    )
+
+    # Cosmos DB optional config
+    cosmos_endpoint = (os.environ.get("COSMOS_ENDPOINT") or "").strip()
+    cosmos_account_key = (os.environ.get("COSMOS_ACCOUNT_KEY") or "").strip()
+    cosmos_database_name = (
+        os.environ.get("COSMOS_DATABASE_NAME") or "llm_arena"
+    ).strip()
+    cosmos_container_name = (
+        os.environ.get("COSMOS_CONTAINER_NAME") or "arena_results"
+    ).strip()
+
+    # Key Vault optional config
+    keyvault_url = (os.environ.get("KEYVAULT_URL") or "").strip()
+
+    # Conditional validation: Cosmos
+    if feature_persistence_cosmos and not cosmos_endpoint:
+        raise ValueError(
+            "FEATURE_PERSISTENCE_COSMOS is enabled but COSMOS_ENDPOINT is not set. "
+            "Provide a valid Cosmos DB endpoint (e.g. https://<account>.documents.azure.com:443/)."
+        )
+
+    # Conditional validation: Key Vault
+    if feature_keyvault_enabled and not keyvault_url:
+        raise ValueError(
+            "FEATURE_KEYVAULT_ENABLED is enabled but KEYVAULT_URL is not set. "
+            "Provide a valid Key Vault URL (e.g. https://<vault-name>.vault.azure.net/)."
+        )
+
     return {
         "endpoint": endpoint,
         "api_key": api_key,
+        # Week 1 — Arena
         "feature_arena_elimination": feature_arena_elimination,
         "feature_arena_metrics_panel": feature_arena_metrics_panel,
         "feature_arena_cost_display": feature_arena_cost_display,
+        # Week 2 — Inspector
         "feature_inspector_enabled": feature_inspector_enabled,
         "feature_inspector_validate_json": feature_inspector_validate_json,
         "feature_inspector_validate_markdown": feature_inspector_validate_markdown,
@@ -101,4 +152,15 @@ def load_config() -> Dict[str, Any]:
         "feature_inspector_tone_check": feature_inspector_tone_check,
         "feature_inspector_persona_check": feature_inspector_persona_check,
         "feature_inspector_highlighting": feature_inspector_highlighting,
+        # Week 3 — Persistence & Memory
+        "feature_persistence_cosmos": feature_persistence_cosmos,
+        "feature_arena_leaderboard": feature_arena_leaderboard,
+        "feature_prompt_memory_enabled": feature_prompt_memory_enabled,
+        "feature_keyvault_enabled": feature_keyvault_enabled,
+        "persist_prompt_text": persist_prompt_text,
+        "cosmos_endpoint": cosmos_endpoint,
+        "cosmos_account_key": cosmos_account_key,
+        "cosmos_database_name": cosmos_database_name,
+        "cosmos_container_name": cosmos_container_name,
+        "keyvault_url": keyvault_url,
     }
