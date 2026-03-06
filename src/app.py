@@ -709,7 +709,7 @@ def _render_leaderboard(config: dict) -> None:
 				{
 					"Deployment": dep,
 					"Wins": s["wins"],
-					"Win Rate (%)": win_rate,
+					"Win Rate (%, per model)": win_rate,
 					"Avg Latency (ms)": avg_lat if avg_lat is not None else "N/A",
 					"Tasks": s["tasks"],
 				}
