@@ -718,6 +718,87 @@ def _render_leaderboard(config: dict) -> None:
 		st.table(rows)
 
 
+def _render_connection_status(config: dict) -> None:
+	"""Render a collapsed expander showing service connection statuses."""
+	with st.expander("Service Connections", expanded=False):
+		rows: list[dict[str, str]] = []
+
+		# 1. Azure Foundry
+		endpoint = config.get("endpoint", "")
+		api_key = config.get("api_key", "")
+		foundry_ok = bool(endpoint and api_key and st.session_state.get("client"))
+		rows.append({
+			"Service": "Azure AI Foundry",
+			"Connection": endpoint if endpoint else "(not configured)",
+			"Status": "\u2705 Connected" if foundry_ok else "\u274c Disconnected",
+		})
+
+		# 2. Model Discovery
+		deployments = st.session_state.get("deployments") or []
+		rows.append({
+			"Service": "Model Discovery",
+			"Connection": f"{len(deployments)} deployment(s) found",
+			"Status": "\u2705 OK" if deployments else "\u26a0\ufe0f No deployments",
+		})
+
+		# 3. Cosmos DB
+		cosmos_enabled = bool(config.get("feature_persistence_cosmos"))
+		cosmos_endpoint = config.get("cosmos_endpoint", "")
+		cosmos_connected = st.session_state.get("cosmos_container") is not None
+		degraded = st.session_state.get("persistence_degraded", False)
+		if not cosmos_enabled:
+			cosmos_status = "\u23f8\ufe0f Disabled"
+		elif degraded:
+			cosmos_status = "\u274c Failed"
+		elif cosmos_connected:
+			db_name = config.get("cosmos_database_name", "")
+			ctr_name = config.get("cosmos_container_name", "")
+			cosmos_status = f"\u2705 Connected (db={db_name}, container={ctr_name})"
+		else:
+			cosmos_status = "\u23f3 Pending"
+		rows.append({
+			"Service": "Cosmos DB",
+			"Connection": cosmos_endpoint if cosmos_endpoint else "(not configured)",
+			"Status": cosmos_status,
+		})
+
+		# 4. Key Vault
+		kv_enabled = bool(config.get("feature_keyvault_enabled"))
+		kv_url = config.get("keyvault_url", "")
+		if not kv_enabled:
+			kv_status = "\u23f8\ufe0f Disabled"
+		elif kv_url:
+			kv_status = "\u2705 Configured"
+		else:
+			kv_status = "\u274c Missing URL"
+		rows.append({
+			"Service": "Azure Key Vault",
+			"Connection": kv_url if kv_url else "(not configured)",
+			"Status": kv_status,
+		})
+
+		# 5. Feature flags from .env
+		flags = [
+			("Arena Elimination", "feature_arena_elimination"),
+			("Metrics Panel", "feature_arena_metrics_panel"),
+			("Cost Display", "feature_arena_cost_display"),
+			("Inspector", "feature_inspector_enabled"),
+			("Persistence (Cosmos)", "feature_persistence_cosmos"),
+			("Leaderboard", "feature_arena_leaderboard"),
+			("Prompt Memory", "feature_prompt_memory_enabled"),
+			("Key Vault", "feature_keyvault_enabled"),
+		]
+
+		st.table(rows)
+
+		st.caption("Feature Flags")
+		flag_rows = [
+			{"Feature": label, "Enabled": "\u2705" if bool(config.get(key)) else "\u274c"}
+			for label, key in flags
+		]
+		st.table(flag_rows)
+
+
 def _render_prompt_memory_selector(config: dict) -> str | None:
 	"""Render prompt-history dropdown in sidebar. Returns selected prompt text or None."""
 	if not bool(config.get("feature_prompt_memory_enabled")):
@@ -775,6 +856,8 @@ def main() -> None:
 		st.stop()
 
 	st.caption("Startup status: credentials validated and deployment discovery completed.")
+
+	_render_connection_status(st.session_state.get("config", {}))
 
 	deployments: list[dict] = st.session_state["deployments"] or []
 	deployment_names = _deployment_names(deployments)
