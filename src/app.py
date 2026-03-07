@@ -31,7 +31,6 @@ try:
 		query_prompt_history,
 		write_arena_result,
 	)
-	from src.pricing import calculate_cost
 except ModuleNotFoundError:
 	from arena import (
 		advance_round,
@@ -58,13 +57,11 @@ except ModuleNotFoundError:
 		query_prompt_history,
 		write_arena_result,
 	)
-	from pricing import calculate_cost
 
 logger = logging.getLogger(__name__)
 
 
 MAX_SELECTION = 5
-PRICING_ENABLED = False
 
 
 def _deployment_names(deployments: list[dict]) -> list[str]:
@@ -103,31 +100,10 @@ def _format_token_value(value: Any) -> str:
 	return str(value)
 
 
-def _format_cost_value(value: Any) -> str:
-	if value is None:
-		return "N/A"
-	return f"${float(value):.4f}"
-
-
 def _format_latency_value(value: Any) -> str:
 	if value is None:
 		return "N/A"
 	return f"{value} ms"
-
-
-def _enrich_results_with_cost(results: list[dict]) -> list[dict]:
-	enriched: list[dict] = []
-	for result in results:
-		estimated_cost = calculate_cost(
-			result.get("model_name"),
-			result.get("input_tokens"),
-			result.get("output_tokens"),
-		)
-		updated_result = dict(result)
-		updated_result["estimated_cost"] = estimated_cost
-		enriched.append(updated_result)
-
-	return enriched
 
 
 def _initialize_state() -> None:
@@ -249,8 +225,6 @@ def _render_results(
 				st.metric("Input Tokens", _format_token_value(result.get("input_tokens")))
 				st.metric("Output Tokens", _format_token_value(result.get("output_tokens")))
 				st.metric("Total Tokens", _format_token_value(result.get("total_tokens")))
-				if PRICING_ENABLED:
-					st.metric("Estimated Cost", _format_cost_value(result.get("estimated_cost")))
 				st.metric("Latency", _format_latency_value(result.get("latency_ms")))
 
 
@@ -430,11 +404,7 @@ def _run_inference_and_store_results(
 			conversation_history_by_deployment=conversation_history_by_deployment,
 			timeout_seconds=60,
 		)
-
-		if PRICING_ENABLED:
-			st.session_state["results"] = _enrich_results_with_cost(inference_results)
-		else:
-			st.session_state["results"] = inference_results
+		st.session_state["results"] = inference_results
 
 
 def _render_arena_controls(
@@ -783,7 +753,6 @@ def _render_connection_status(config: dict) -> None:
 		flags = [
 			("Arena Elimination", "feature_arena_elimination"),
 			("Metrics Panel", "feature_arena_metrics_panel"),
-			("Cost Display", "feature_arena_cost_display"),
 			("Inspector", "feature_inspector_enabled"),
 			("Persistence (Cosmos)", "feature_persistence_cosmos"),
 			("Leaderboard", "feature_arena_leaderboard"),
@@ -866,7 +835,6 @@ def main() -> None:
 	config = st.session_state.get("config", {})
 	arena_enabled = bool(config.get("feature_arena_elimination", False))
 	metrics_enabled = bool(config.get("feature_arena_metrics_panel", False))
-	cost_notice_enabled = bool(config.get("feature_arena_cost_display", False))
 	inspector_enabled = bool(config.get("feature_inspector_enabled", False))
 	highlighting_enabled = bool(config.get("feature_inspector_highlighting", False))
 	persistence_enabled = bool(config.get("feature_persistence_cosmos", False))
@@ -1168,9 +1136,6 @@ def main() -> None:
 				eliminated_models=[],
 				models_compared=models_list,
 			)
-
-	if cost_notice_enabled and st.session_state.get("results", []):
-		st.info("Cost estimation not available via SDK — see pricing page")
 
 	_render_results(
 		st.session_state.get("results", []),

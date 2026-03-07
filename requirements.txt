@@ -5,3 +5,4 @@ azure-identity>=1.25,<2.0
 azure-cosmos>=4.9,<5.0
 azure-keyvault-secrets>=4.9,<5.0
 python-dotenv>=1.2,<2.0
+requests>=2.32,<3.0

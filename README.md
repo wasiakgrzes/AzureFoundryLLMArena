@@ -6,7 +6,7 @@ Azure Foundry LLM Arena is a local Streamlit tool for comparing multiple Microso
 
 - Discovers text-compatible deployments from one Azure AI Foundry resource.
 - Sends the same prompt to selected deployments (1–5).
-- Displays raw output, token usage, estimated cost, and latency per deployment.
+- Displays raw output, token usage, and latency per deployment.
 - Isolates failures so one deployment error does not break the whole run.
 - Exports the selected best model configuration as JSON (without secrets).
 
@@ -40,7 +40,6 @@ For API-key inference endpoints that do not expose deployment listing APIs, set 
 ```env
 FEATURE_ARENA_ELIMINATION=false
 FEATURE_ARENA_METRICS_PANEL=false
-FEATURE_ARENA_COST_DISPLAY=false
 FEATURE_INSPECTOR_ENABLED=false
 FEATURE_INSPECTOR_VALIDATE_JSON=false
 FEATURE_INSPECTOR_VALIDATE_MARKDOWN=false
@@ -54,7 +53,6 @@ FEATURE_INSPECTOR_HIGHLIGHTING=false
 
 - `FEATURE_ARENA_ELIMINATION=true` enables tournament-style elimination rounds.
 - `FEATURE_ARENA_METRICS_PANEL=true` shows per-model metrics (model name, latency, token usage).
-- `FEATURE_ARENA_COST_DISPLAY=true` shows the static transparency note: `Cost estimation not available via SDK — see pricing page`.
 - `FEATURE_INSPECTOR_ENABLED=true` enables the Output Inspector panel.
 - `FEATURE_INSPECTOR_VALIDATE_JSON|MARKDOWN|XML=true` enables deterministic format checks for the selected format.
 - `FEATURE_INSPECTOR_REQUIRED_FIELDS=true` enables required top-level JSON key checks.
@@ -133,26 +131,16 @@ src/
 	discovery.py      # Deployment discovery and filtering
 	inference.py      # Inference execution and error isolation
 	inspector.py      # Output Inspector checks and semantic inspection helpers
-	pricing.py        # Pricing load + cost calculator
 	export.py         # Best-model export JSON generation
-	model_pricing.json
 tests/
 	sanity_checks/
 ```
 
-## Pricing configuration
-
-- Pricing data is stored in `src/model_pricing.json`.
-- Values are expected as USD cost per 1,000 tokens:
-	- `input_per_1k`
-	- `output_per_1k`
-- To update pricing, edit model entries in `src/model_pricing.json`.
-
 ## Known limitations
 
 - Single Microsoft Foundry resource per run.
-- Static pricing file (manual updates required).
+- Cost estimation is not available because the current API does not expose pricing telemetry.
 - No persistence of prompt history, results, or arena state across app restarts.
-- Sequential inference execution (no parallel fan-out).
+- Parallel fan-out uses threads (not async), so throughput still depends on local/network limits.
 - Local-only app; no CI/CD or hosted deployment in MVP.
 - Arena flow supports up to 5 selected deployments.

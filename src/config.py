@@ -45,10 +45,6 @@ def load_config() -> Dict[str, Any]:
         os.environ.get("FEATURE_ARENA_METRICS_PANEL"),
         default=False,
     )
-    feature_arena_cost_display = _parse_bool(
-        os.environ.get("FEATURE_ARENA_COST_DISPLAY"),
-        default=False,
-    )
     feature_inspector_enabled = _parse_bool(
         os.environ.get("FEATURE_INSPECTOR_ENABLED"),
         default=False,
@@ -147,7 +143,6 @@ def load_config() -> Dict[str, Any]:
         # Week 1 — Arena
         "feature_arena_elimination": feature_arena_elimination,
         "feature_arena_metrics_panel": feature_arena_metrics_panel,
-        "feature_arena_cost_display": feature_arena_cost_display,
         # Week 2 — Inspector
         "feature_inspector_enabled": feature_inspector_enabled,
         "feature_inspector_validate_json": feature_inspector_validate_json,

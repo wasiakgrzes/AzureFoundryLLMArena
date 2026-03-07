@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import os
-from urllib import error as urllib_error
-from urllib import request as urllib_request
 from typing import Any, Dict, Iterable, List
+
+import requests
 
 
 COMPATIBLE_MODEL_TYPES = {
@@ -103,17 +103,16 @@ def _payload_list_candidates(payload: Any) -> tuple[bool, List[Any]]:
 
 
 def _http_get_json(url: str, api_key: str, timeout_seconds: int) -> Any:
-    request = urllib_request.Request(
+    response = requests.get(
         url,
         headers={
             "api-key": api_key,
             "Accept": "application/json",
         },
-        method="GET",
+        timeout=timeout_seconds,
     )
-    with urllib_request.urlopen(request, timeout=timeout_seconds) as response:
-        body = response.read().decode("utf-8")
-        return json.loads(body)
+    response.raise_for_status()
+    return response.json()
 
 
 def _list_deployments_via_rest(client: Any, timeout_seconds: int) -> List[Any]:
@@ -140,7 +139,7 @@ def _list_deployments_via_rest(client: Any, timeout_seconds: int) -> List[Any]:
             is_list_payload, deployments = _payload_list_candidates(payload)
             if is_list_payload:
                 return deployments
-        except urllib_error.URLError as ex:
+        except requests.RequestException as ex:
             errors.append(ex)
         except json.JSONDecodeError as ex:
             errors.append(ex)
