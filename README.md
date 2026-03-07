@@ -129,6 +129,7 @@ src/
 	config.py         # Environment loading and validation
 	client.py         # AIProjectClient initialization
 	discovery.py      # Deployment discovery and filtering
+	foundry_client_utils.py  # Shared Foundry client/response helper utilities
 	inference.py      # Inference execution and error isolation
 	inspector.py      # Output Inspector checks and semantic inspection helpers
 	export.py         # Best-model export JSON generation
