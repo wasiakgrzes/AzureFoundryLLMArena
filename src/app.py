@@ -720,6 +720,8 @@ def _render_leaderboard(config: dict) -> None:
 
 def _render_connection_status(config: dict) -> None:
 	"""Render a collapsed expander showing service connection statuses."""
+	if not bool(config.get("feature_connection_status_panel")):
+		return
 	with st.expander("Service Connections", expanded=False):
 		rows: list[dict[str, str]] = []
 

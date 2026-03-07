@@ -86,6 +86,12 @@ def load_config() -> Dict[str, Any]:
         default=False,
     )
 
+    # --- UI panels ---
+    feature_connection_status_panel = _parse_bool(
+        os.environ.get("FEATURE_CONNECTION_STATUS_PANEL"),
+        default=False,
+    )
+
     # --- Week 3: Persistence, Leaderboard, Prompt Memory, Key Vault ---
     feature_persistence_cosmos = _parse_bool(
         os.environ.get("FEATURE_PERSISTENCE_COSMOS"),
@@ -152,6 +158,8 @@ def load_config() -> Dict[str, Any]:
         "feature_inspector_tone_check": feature_inspector_tone_check,
         "feature_inspector_persona_check": feature_inspector_persona_check,
         "feature_inspector_highlighting": feature_inspector_highlighting,
+        # UI panels
+        "feature_connection_status_panel": feature_connection_status_panel,
         # Week 3 — Persistence & Memory
         "feature_persistence_cosmos": feature_persistence_cosmos,
         "feature_arena_leaderboard": feature_arena_leaderboard,
