@@ -217,6 +217,7 @@ prd/
 implementation_plan/
 code_review/
 brudnopis/
+specification/
 
 # Agent definitions used during planning
 .github/agents/
