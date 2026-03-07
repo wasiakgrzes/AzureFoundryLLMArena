@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, Iterable, List, Optional
 
 from azure.ai.inference import ChatCompletionsClient
@@ -214,9 +215,11 @@ def run_batch_inference(
     conversation_history_by_deployment: Optional[Dict[str, List[Dict[str, str]]]] = None,
     timeout_seconds: int = 60,
 ) -> List[Dict[str, Any]]:
-    results: List[Dict[str, Any]] = []
+    deployment_list = list(deployments)
+    if not deployment_list:
+        return []
 
-    for deployment in deployments:
+    def _infer(deployment: Dict[str, Any]) -> Dict[str, Any]:
         deployment_name = str(deployment.get("deployment_name", "unknown"))
         model_type = str(deployment.get("model_type", "unknown"))
         expected_model_name = deployment.get("model_name")
@@ -233,6 +236,10 @@ def run_batch_inference(
         if result.get("error") is None and expected_model_name:
             result["model_name"] = str(expected_model_name)
 
-        results.append(result)
+        return result
+
+    with ThreadPoolExecutor(max_workers=len(deployment_list)) as executor:
+        futures = [executor.submit(_infer, dep) for dep in deployment_list]
+        results = [f.result() for f in futures]
 
     return results

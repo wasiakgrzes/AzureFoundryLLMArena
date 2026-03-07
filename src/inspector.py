@@ -558,8 +558,8 @@ def run_semantic_inspection(
             "tone_match": None,
             "persona_match": None,
             "reason": "",
-                "task_fulfillment_match": None,
-                "task_fulfillment_reason": "",
+            "task_fulfillment_match": None,
+            "task_fulfillment_reason": "",
         }
 
 
