@@ -210,3 +210,10 @@ __marimo__/
 
 brudnopis/
 tests/
+
+
+# Internal planning docs
+prd/
+implementation_plan/
+code_review/
+brudnopis/
