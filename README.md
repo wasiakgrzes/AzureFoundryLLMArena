@@ -244,19 +244,6 @@ specification/              # Feature specs and user stories
 
 ---
 
-## Suggested Improvements
-
-> **Screenshots & visuals to consider adding:**
->
-> 1. **Side-by-side results screenshot** — showing the column layout with model outputs, latency badges, and token counts after a prompt submission.
-> 2. **Inspector badges screenshot** — a close-up of pass/fail check badges (JSON validation, required fields, tone check) on a result card.
-> 3. **Arena elimination flow diagram** — a visual showing Round 1 → winner selection → Round 2 → final winner banner.
-> 4. **Leaderboard screenshot** — the historical leaderboard table with win rates and average latency.
-> 5. **Architecture diagram** — a polished version of the ASCII diagram above (e.g., exported from draw.io or Mermaid).
-> 6. **Setup walkthrough GIF** — a short recording of cloning, configuring `.env`, and launching the app.
-
----
-
 ## License
 
 This project is provided as-is for demonstration and evaluation purposes.
