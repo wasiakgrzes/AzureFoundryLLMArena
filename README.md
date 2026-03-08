@@ -1,147 +1,262 @@
 # Azure Foundry LLM Arena
 
-Azure Foundry LLM Arena is a local Streamlit tool for comparing multiple Microsoft Foundry (formerly Azure AI Foundry) deployments side by side with one shared prompt.
+**Compare multiple Azure AI Foundry model deployments side by side — pick the best model based on actual output, not benchmarks.**
 
-## What it does
+Azure Foundry LLM Arena sends the same prompt to up to five models simultaneously, displays responses with latency and token metrics, validates outputs against configurable quality checks, and runs multi-round elimination tournaments so you can choose a model based on consistency across prompts and real task fit.
 
-- Discovers text-compatible deployments from one Azure AI Foundry resource.
-- Sends the same prompt to selected deployments (1–5).
-- Displays raw output, token usage, and latency per deployment.
-- Isolates failures so one deployment error does not break the whole run.
-- Exports the selected best model configuration as JSON (without secrets).
+Built with Streamlit, Azure AI Inference SDK, Cosmos DB, and Key Vault.
+
+---
+
+
+## 📼 Demo Video
+
+<video controls src="https://github.com/user-attachments/assets/dc06b902-d799-449f-a7a6-dd00294228f7" title="Grzegorz Wasiak AzureFoundryLLMArena Demo"></video>
+
+> **Sample prompt used in the demo:** *"I need to wash my car. The car wash is 100 meters from my house. Should I walk or drive there?"* — The correct answer is **drive**, because the car itself needs to reach the car wash. The prompt asks models to return valid JSON with `recommendation`, `justification`, and `method` fields, then a follow-up round tests consistency with *"What if it's raining?"*
+
+---
+
+## Key Features
+
+| Feature | Description |
+|---|---|
+| **Side-by-side comparison** | Send one prompt to 1–5 deployments, see responses in parallel columns |
+| **Arena elimination** | Tournament-style rounds — select winners, eliminate losers, converge on the best model |
+| **Output Inspector** | Validate JSON/Markdown/XML structure, required fields, extra-text detection, tone and persona checks |
+| **Metrics panel** | Per-model latency (ms) and token usage (input/output/total) alongside every response |
+| **Cosmos DB persistence** | Store arena results, build a historical leaderboard, track model performance over time |
+| **Prompt memory** | Reuse previous prompts from history (Cosmos-backed or local JSON fallback) |
+| **Key Vault integration** | Optionally load secrets from Azure Key Vault instead of `.env` |
+| **Export** | Download the best model's configuration as a reusable JSON file (no secrets included) |
+| **Failure isolation** | One model failure never blocks others — errors display inline per deployment |
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Streamlit UI (app.py)                      │
+│  ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌───────────────┐  │
+│  │ Sidebar  │  │ Prompt   │  │  Results   │  │  Leaderboard  │  │
+│  │ Controls │  │ Input    │  │  Columns   │  │  & History    │  │
+│  └────┬─────┘  └────┬─────┘  └─────┬─────┘  └───────┬───────┘  │
+└───────┼──────────────┼──────────────┼────────────────┼──────────┘
+        │              │              │                │
+   ┌────▼────┐   ┌─────▼─────┐  ┌────▼────┐   ┌──────▼──────┐
+   │ Config  │   │ Inference │  │Inspector│   │ Persistence │
+   │ + Flags │   │  Engine   │  │ Checks  │   │  (Cosmos)   │
+   └────┬────┘   └─────┬─────┘  └─────────┘   └──────┬──────┘
+        │              │                              │
+   ┌────▼────┐   ┌─────▼──────────┐           ┌──────▼──────┐
+   │Discovery│   │ Azure AI       │           │  Cosmos DB  │
+   │         │   │ Inference SDK  │           │  + KeyVault │
+   └────┬────┘   └─────┬──────────┘           └─────────────┘
+        │              │
+        └──────┬───────┘
+         ┌─────▼──────┐
+         │ Azure AI   │
+         │ Foundry    │
+         │ Resource   │
+         └────────────┘
+```
+
+---
 
 ## Prerequisites
 
-- Python 3.11+
-- A Microsoft Foundry resource with model deployments
-- API key access to the resource
+- **Python 3.11+**
+- An **Azure AI Foundry** resource with at least one model deployment
+- API key for the resource
+- *(Optional)* Azure Cosmos DB account — for persistence and leaderboard
+- *(Optional)* Azure Key Vault — for secret management
 
-## Installation
-
-1. Create and activate a virtual environment.
-2. Install dependencies:
+## Quickstart
 
 ```bash
+# 1. Clone and enter the repo
+git clone https://github.com/wasiakgrzes/AzureFoundryLLMArena.git
+cd AzureFoundryLLMArena
+
+# 2. Create virtual environment
+python -m venv .venv
+# Windows
+.venv\Scripts\activate
+# Linux / macOS
+source .venv/bin/activate
+
+# 3. Install dependencies
 pip install -r requirements.txt
-```
 
-3. Configure environment variables (via shell or `.env` file):
+# 4. Configure credentials (create a .env file or export vars)
+cp .env.example .env   # then edit with your values
 
-```env
-AZURE_FOUNDRY_ENDPOINT=https://<your-foundry-endpoint>
-AZURE_FOUNDRY_API_KEY=<your-api-key>
-AZURE_FOUNDRY_DEPLOYMENTS=DeepSeek-V3.2,gpt-5-mini,Mistral-Large-3
-```
-
-For API-key inference endpoints that do not expose deployment listing APIs, set `AZURE_FOUNDRY_DEPLOYMENTS` (comma-separated) so the app can load your deployments. You can also set `DEPLOYMENT_NAME` for a single deployment fallback.
-
-### Feature flags
-
-```env
-FEATURE_ARENA_ELIMINATION=false
-FEATURE_ARENA_METRICS_PANEL=false
-FEATURE_INSPECTOR_ENABLED=false
-FEATURE_INSPECTOR_VALIDATE_JSON=false
-FEATURE_INSPECTOR_VALIDATE_MARKDOWN=false
-FEATURE_INSPECTOR_VALIDATE_XML=false
-FEATURE_INSPECTOR_REQUIRED_FIELDS=false
-FEATURE_INSPECTOR_NO_EXTRA_TEXT=false
-FEATURE_INSPECTOR_TONE_CHECK=false
-FEATURE_INSPECTOR_PERSONA_CHECK=false
-FEATURE_INSPECTOR_HIGHLIGHTING=false
-```
-
-- `FEATURE_ARENA_ELIMINATION=true` enables tournament-style elimination rounds.
-- `FEATURE_ARENA_METRICS_PANEL=true` shows per-model metrics (model name, latency, token usage).
-- `FEATURE_INSPECTOR_ENABLED=true` enables the Output Inspector panel.
-- `FEATURE_INSPECTOR_VALIDATE_JSON|MARKDOWN|XML=true` enables deterministic format checks for the selected format.
-- `FEATURE_INSPECTOR_REQUIRED_FIELDS=true` enables required top-level JSON key checks.
-- `FEATURE_INSPECTOR_NO_EXTRA_TEXT=true` detects prefix/suffix text outside the structured block.
-- `FEATURE_INSPECTOR_TONE_CHECK=true` and/or `FEATURE_INSPECTOR_PERSONA_CHECK=true` enables semantic checks via one inspector model call per response.
-- `FEATURE_INSPECTOR_HIGHLIGHTING=true` enables color-coded inspector summaries in result cards.
-
-## Run the app
-
-```bash
+# 5. Run
 streamlit run src/app.py
 ```
 
-## Usage flow
+### Minimum `.env`
 
-1. Launch the app.
+```env
+AZURE_FOUNDRY_ENDPOINT=https://<your-foundry-resource>.services.ai.azure.com
+AZURE_FOUNDRY_API_KEY=<your-api-key>
+```
+
+For inference endpoints that don't expose a deployment-listing API, specify deployments explicitly:
+
+```env
+AZURE_FOUNDRY_DEPLOYMENTS=DeepSeek-V3.2,gpt-5-mini,Mistral-Large-3
+```
+
+---
+
+## Configuration Reference
+
+### Core
+
+| Variable | Required | Description |
+|---|---|---|
+| `AZURE_FOUNDRY_ENDPOINT` | Yes | Foundry resource endpoint URL |
+| `AZURE_FOUNDRY_API_KEY` | Yes | API key for the resource |
+| `AZURE_FOUNDRY_DEPLOYMENTS` | No | Comma-separated deployment names (fallback when auto-discovery unavailable) |
+
+### Feature Flags
+
+All flags default to `false`. Set to `true` to enable.
+
+| Flag | Category | Description |
+|---|---|---|
+| `FEATURE_ARENA_ELIMINATION` | Arena | Tournament-style multi-round elimination |
+| `FEATURE_ARENA_METRICS_PANEL` | Arena | Show latency and token usage per model |
+| `FEATURE_ARENA_LEADERBOARD` | Persistence | Historical win-rate leaderboard (requires Cosmos) |
+| `FEATURE_INSPECTOR_ENABLED` | Inspector | Enable the Output Inspector sidebar panel |
+| `FEATURE_INSPECTOR_VALIDATE_JSON` | Inspector | JSON structure validation |
+| `FEATURE_INSPECTOR_VALIDATE_MARKDOWN` | Inspector | Markdown structure validation |
+| `FEATURE_INSPECTOR_VALIDATE_XML` | Inspector | XML structure validation |
+| `FEATURE_INSPECTOR_REQUIRED_FIELDS` | Inspector | Check for required top-level JSON keys |
+| `FEATURE_INSPECTOR_NO_EXTRA_TEXT` | Inspector | Detect text outside the structured block |
+| `FEATURE_INSPECTOR_TONE_CHECK` | Inspector | Model-assisted tone adherence check |
+| `FEATURE_INSPECTOR_PERSONA_CHECK` | Inspector | Model-assisted persona adherence check |
+| `FEATURE_INSPECTOR_HIGHLIGHTING` | Inspector | Color-coded inspector badges on result cards |
+| `FEATURE_CONNECTION_STATUS_PANEL` | UI | Show connection health in the sidebar |
+| `FEATURE_PERSISTENCE_COSMOS` | Persistence | Persist arena results to Cosmos DB |
+| `FEATURE_PROMPT_MEMORY_ENABLED` | Persistence | Enable prompt history / reuse |
+| `FEATURE_KEYVAULT_ENABLED` | Security | Load secrets from Azure Key Vault |
+| `PERSIST_PROMPT_TEXT` | Persistence | Store raw prompt text in Cosmos records |
+
+### Cosmos DB (when `FEATURE_PERSISTENCE_COSMOS=true`)
+
+| Variable | Default | Description |
+|---|---|---|
+| `COSMOS_ENDPOINT` | *(required)* | Cosmos DB account endpoint |
+| `COSMOS_ACCOUNT_KEY` | — | Account key (or use Managed Identity) |
+| `COSMOS_DATABASE_NAME` | `llm_arena` | Target database name |
+| `COSMOS_CONTAINER_NAME` | `arena_results` | Target container name |
+
+### Key Vault (when `FEATURE_KEYVAULT_ENABLED=true`)
+
+| Variable | Description |
+|---|---|
+| `KEYVAULT_URL` | Key Vault URL (e.g. `https://<vault>.vault.azure.net/`) |
+
+---
+
+## Usage
+
+### Basic Comparison
+
+1. Launch the app with `streamlit run src/app.py`.
 2. Select 1–5 deployments in the sidebar.
-3. Enter a prompt.
-4. Click **Submit** to run inference.
-5. Compare results side by side.
-6. Select a best model and download `best_model_config.json`.
+3. Enter your prompt and click **Submit**.
+4. Compare raw outputs, latency, and token metrics side by side.
+5. Select the best model and download `best_model_config.json`.
 
-## Arena Elimination Mode
+### Arena Elimination Mode
 
-When `FEATURE_ARENA_ELIMINATION=true`:
+Enable with `FEATURE_ARENA_ELIMINATION=true`.
 
 1. Select 2–5 deployments and submit a prompt.
-2. Round results are displayed with winner checkboxes for successful responses.
-3. Click **Proceed to Next Round** to eliminate unselected models.
-4. Repeat until one model remains.
-5. Use **Reset Arena** at any time to restart the tournament.
+2. Review round results — check the winner(s) for each successful response.
+3. Click **Proceed to Next Round** to eliminate unselected models and pose a follow-up prompt.
+4. Repeat until one model remains — the winner banner appears automatically.
+5. **Reset Arena** restarts the tournament at any time.
 
-Behavior notes:
-- Proceed is blocked when no winner is selected.
-- If all responses fail in a round, advancement is blocked and reset is required.
-- If only one model remains, arena auto-completes and displays the winner banner.
+### Output Inspector
 
-## Output Inspector System
-
-When `FEATURE_INSPECTOR_ENABLED=true`:
+Enable with `FEATURE_INSPECTOR_ENABLED=true` plus desired check flags.
 
 1. Open **Output Inspector** in the sidebar.
-2. Choose validation format (`json`, `markdown`, or `xml`).
-3. Optionally configure required fields and no-extra-text checks.
-4. Optionally configure expected tone/persona and select an inspector deployment.
-5. Submit prompt and review per-model check badges.
+2. Select a validation format (`json`, `markdown`, or `xml`).
+3. Configure required fields, no-extra-text detection, expected tone/persona, or custom instructions.
+4. Submit a prompt — per-model check badges appear alongside results.
 
-Inspector checks:
-- Structural checks (local): JSON, Markdown, XML parsing heuristics.
-- Required fields (local): top-level JSON keys only.
-- No-extra-text (local): prefix/suffix detection outside JSON/XML block.
-- Semantic checks (model-assisted): tone/persona adherence with structured reason text.
+Inspector checks include:
+- **Structural** (local): JSON/Markdown/XML parsing.
+- **Required fields** (local): top-level JSON key presence.
+- **No extra text** (local): prefix/suffix outside structured block.
+- **Semantic** (model-assisted): tone, persona adherence, and custom-instruction compliance with structured reasoning.
 
-Behavior and failure handling:
-- Inspector failures are non-blocking; arena results still render.
-- Empty outputs return structured failures instead of raw exceptions.
-- Invalid JSON with required fields configured returns `not_evaluated` field status.
-- Local checks still run when semantic checks fail.
+### Persistence & Leaderboard
 
-Security notes:
-- Highlight rendering escapes model output before HTML rendering.
-- Inspector prompts do not include API keys or runtime secrets.
+Enable with `FEATURE_PERSISTENCE_COSMOS=true` and optionally `FEATURE_ARENA_LEADERBOARD=true`.
 
-Current limitations:
-- Markdown structure and no-extra-text checks are heuristic-based.
-- Semantic checks add latency proportional to number of model responses.
-- Inspector results are not persisted across app restarts.
+- Arena outcomes are automatically stored in Cosmos DB after each run.
+- The leaderboard aggregates wins, win rate, average latency, and task count across all historical runs.
+- Prompt memory (`FEATURE_PROMPT_MEMORY_ENABLED=true`) lets you select and re-run previous prompts from a dropdown.
 
-## Project structure
+---
+
+## Project Structure
 
 ```
 src/
-	app.py            # Streamlit UI and orchestration
-	config.py         # Environment loading and validation
-	client.py         # AIProjectClient initialization
-	discovery.py      # Deployment discovery and filtering
-	foundry_client_utils.py  # Shared Foundry client/response helper utilities
-	inference.py      # Inference execution and error isolation
-	inspector.py      # Output Inspector checks and semantic inspection helpers
-	export.py         # Best-model export JSON generation
+  app.py                    # Streamlit UI entry point and orchestration
+  config.py                 # Environment variable loading, validation, feature flags
+  client.py                 # Azure AI Foundry client initialization
+  discovery.py              # Deployment auto-discovery and filtering
+  inference.py              # Batch inference execution with failure isolation
+  inspector.py              # Output Inspector — structural and semantic checks
+  foundry_client_utils.py   # Shared inference client and response helpers
+  arena.py                  # Arena state machine (rounds, elimination, winner)
+  ui_panels.py              # Extracted UI: results, export, leaderboard, prompt memory
+  persistence.py            # Cosmos DB adapter — write/query arena records
+  export.py                 # Best-model config JSON generation
 tests/
-	sanity_checks/
+  sanity_checks/            # Per-feature sanity test suites
+  fixes/                    # Diagnostic and regression scripts
+implementation_plan/        # Incremental build plans (JSON checklists)
+prd/                        # Product Requirements Documents
+specification/              # Feature specs and user stories
 ```
 
-## Known limitations
+---
 
-- Single Microsoft Foundry resource per run.
-- Cost estimation is not available because the current API does not expose pricing telemetry.
-- No persistence of prompt history, results, or arena state across app restarts.
-- Parallel fan-out uses threads (not async), so throughput still depends on local/network limits.
-- Local-only app; no CI/CD or hosted deployment in MVP.
-- Arena flow supports up to 5 selected deployments.
+## Known Limitations
+
+- Single Azure AI Foundry resource per run.
+- Cost estimation unavailable — the API does not expose pricing telemetry.
+- Parallel fan-out uses threads (not async); throughput depends on local/network limits.
+- Markdown and XML structure checks are heuristic-based.
+- Semantic inspector checks add latency proportional to number of model responses.
+- Arena supports a maximum of 5 selected deployments per run.
+- Local-only app — no CI/CD or hosted deployment pipeline.
+
+---
+
+## Suggested Improvements
+
+> **Screenshots & visuals to consider adding:**
+>
+> 1. **Side-by-side results screenshot** — showing the column layout with model outputs, latency badges, and token counts after a prompt submission.
+> 2. **Inspector badges screenshot** — a close-up of pass/fail check badges (JSON validation, required fields, tone check) on a result card.
+> 3. **Arena elimination flow diagram** — a visual showing Round 1 → winner selection → Round 2 → final winner banner.
+> 4. **Leaderboard screenshot** — the historical leaderboard table with win rates and average latency.
+> 5. **Architecture diagram** — a polished version of the ASCII diagram above (e.g., exported from draw.io or Mermaid).
+> 6. **Setup walkthrough GIF** — a short recording of cloning, configuring `.env`, and launching the app.
+
+---
+
+## License
+
+This project is provided as-is for demonstration and evaluation purposes.
