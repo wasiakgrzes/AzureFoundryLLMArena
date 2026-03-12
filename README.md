@@ -11,6 +11,8 @@ Built with Streamlit, Azure AI Inference SDK, Cosmos DB, and Key Vault.
 
 ## 📼 Demo Video
 
+**▶ [Watch on YouTube](https://youtu.be/BKbiP0_1CU4)**
+
 <video controls src="https://github.com/user-attachments/assets/dc06b902-d799-449f-a7a6-dd00294228f7" title="Grzegorz Wasiak AzureFoundryLLMArena Demo"></video>
 
 > **Sample prompt used in the demo:** *"I need to wash my car. The car wash is 100 meters from my house. Should I walk or drive there?"* — The correct answer is **drive**, because the car itself needs to reach the car wash. The prompt asks models to return valid JSON with `recommendation`, `justification`, and `method` fields, then a follow-up round tests consistency with *"What if it's raining?"*
