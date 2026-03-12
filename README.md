@@ -31,6 +31,10 @@ Built with Streamlit, Azure AI Inference SDK, Cosmos DB, and Key Vault.
 | **Export** | Download the best model's configuration as a reusable JSON file (no secrets included) |
 | **Failure isolation** | One model failure never blocks others — errors display inline per deployment |
 
+### Side-by-side Results
+
+![Side-by-side model comparison results](demo/results.png)
+
 ---
 
 ## Architecture
@@ -204,6 +208,8 @@ Enable with `FEATURE_PERSISTENCE_COSMOS=true` and optionally `FEATURE_ARENA_LEAD
 - Arena outcomes are automatically stored in Cosmos DB after each run.
 - The leaderboard aggregates wins, win rate, average latency, and task count across all historical runs.
 - Prompt memory (`FEATURE_PROMPT_MEMORY_ENABLED=true`) lets you select and re-run previous prompts from a dropdown.
+
+![Leaderboard after follow-up prompt](demo/leaderboards.png)
 
 ---
 
