@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="demo/iconographics.png" alt="Azure Foundry LLM Arena header graphic" width="100%" />
+</p>
+
 # Azure Foundry LLM Arena
 
 **Compare multiple Azure AI Foundry model deployments side by side — pick the best model based on actual output, not benchmarks.**
